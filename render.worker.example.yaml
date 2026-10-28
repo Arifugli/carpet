@@ -1,0 +1,32 @@
+# Отдельный необязательный Blueprint. Не создаёт воркер при sync основного render.yaml.
+services:
+  - type: worker
+    name: kover-crm-outbox
+    runtime: node
+    plan: 0.5c-512mb
+    region: frankfurt
+    buildCommand: npm ci
+    startCommand: npm run worker
+    autoDeployTrigger: "off"
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: NOTIFICATION_ENCRYPTION_KEY
+        sync: false
+      - key: ESKIZ_TOKEN
+        sync: false
+      - key: ESKIZ_FROM
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: WEBHOOK_ALLOWED_HOSTS
+        sync: false
+      - key: WORKER_SEND_ENABLED
+        value: "false"

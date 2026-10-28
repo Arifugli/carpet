@@ -1,6 +1,6 @@
 {
   "name": "kover-crm",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -10,15 +10,19 @@
     "start": "node src/server.js",
     "dev": "node --env-file=.env --watch src/server.js",
     "test": "node test/run.js",
-    "test:browser": "node test/browser.test.js"
+    "test:browser": "node test/browser.test.js",
+    "worker": "node src/worker.js",
+    "benchmark": "node scripts/benchmark.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.78.0",
     "cors": "2.8.6",
     "express": "5.3.0",
     "express-rate-limit": "7.5.1",
+    "fast-xml-parser": "5.11.2",
     "fflate": "0.8.3",
     "helmet": "8.3.0",
+    "qrcode": "1.5.4",
     "zod": "4.6.7"
   },
   "devDependencies": {

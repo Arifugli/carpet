@@ -6,8 +6,8 @@ services:
     region: frankfurt     # ближайший к Узбекистану; Supabase тоже лучше создать во Frankfurt
     buildCommand: npm ci
     startCommand: npm start
-    healthCheckPath: /health
-    autoDeploy: true
+    healthCheckPath: /ready
+    autoDeployTrigger: checksPass
     envVars:
       - key: NODE_VERSION
         value: "20"

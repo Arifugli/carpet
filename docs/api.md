@@ -144,3 +144,28 @@
 ## Этап 3
 
 Эндпоинты отчётов, параметры и ограничения снимков: [stage3.md](stage3.md). GET /reports, GET /reports/:name, GET /reports/:name/export; POST /actions/visit.arrived. Все защищены Auth и проверкой разрешения, снимки изолированы по пользователю.
+
+## Этап 4: операции и интеграции
+
+| Метод | Маршрут | Контракт |
+|---|---|---|
+| GET | /health, /ready | Liveness и проверка БД/схемы |
+| GET | /api/ops/:view | cash,stock,quality,rewash,loyalty,payroll,integrations,planning,documents,alerts; date/from/to,branch_id,zone_code,order_id,cursor |
+| POST | /api/actions/:command | Схемы src/operations.js, обязательный Idempotency-Key UUID |
+| POST | /api/intake/:id/challenge | Пустое тело, Idempotency-Key; SMS-код в ответ не включается |
+| GET | /api/payment-intents/:id/link | Ссылка провайдера для открытого счёта |
+| GET | /api/orders/:id/print/:kind | labels,receipt,act; HTML печати по Auth, токен не помещается в URL |
+| POST | /api/imports/:kind | clients/orders; format csv/xlsx, data base64,branch_id,dry_run; обязательный ключ |
+| GET | /api/imports/:kind/template | Образец CSV |
+| GET | /api/exports/clients | format csv/xlsx,branch_id,cursor_id; до 1000 строк, продолжение X-Next-Cursor |
+| GET | /api/public/intake/:token | Клиентский снимок с временными ссылками фото |
+| POST | /api/public/intake/:token/confirm | code — 6 цифр; 5 минут/5 попыток |
+| POST | /api/public/feedback/:token | score 0–10,comment; только выданный заказ, первый ответ сохраняется |
+| POST | /api/providers/payme | Basic Paycom:key, JSON-RPC; без Auth сотрудника |
+| POST | /api/providers/click | Подписанные Prepare/Complete, form-urlencoded; без Auth сотрудника |
+| POST | /api/integrations/orders | Подписанная форма заказа, отдельный actor интеграции и ключ запроса |
+| POST | /api/integrations/telephony | Подписанный нормализованный webhook АТС |
+
+Новые команды: call.link; discount.rule/apply; payment.refund/intent; cash.close; client.preferences; intake.create; complaint.create/resolve; compensation.paid; rewash.advance; material.save; stock.adjust; piece_rate.save; slot_limit.save; webhook.save; outbox.retry. Точный JSON, лимиты полей и permission — src/operations.js; дополнительно проверяются роль, филиал и состояние в SQL.
+
+Публичные маршруты и callbacks используют отдельные ограничители. Остальные /api требуют проверенный Bearer и активный профиль. HMAC-контракты, единицы сумм и настройка: [stage4.md](stage4.md). Тела импорта ограничены 3 МБ JSON / 2 МБ исходного файла, обычные поля имеют собственные ограничения Zod. Ошибки валидации — 400, прав — 403, конфликта — 409; провайдерские ошибки возвращаются в формате протокола.

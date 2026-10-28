@@ -7,7 +7,7 @@ const STATUSES=['new','pickup_assigned','received','washing','drying','ready','d
 const money=z.number().int().min(0).max(999999999999);
 const reason=z.string().trim().min(1,'Укажите причину').max(500);
 const item=z.object({length_m:z.number().min(0.3).max(20),width_m:z.number().min(0.3).max(20),tariff:z.string().min(1).max(20),note:z.string().max(300).optional()}).strict();
-const orderInput=z.object({
+export const orderInput=z.object({
  name:z.string().max(120).default(''),phone:z.string().max(32).transform(v=>v.replace(/[\s()-]/g,''))
   .refine(v=>/^\+998\d{9}$/.test(v),'Телефон должен быть в формате +998XXXXXXXXX'),
  address:z.string().trim().min(3).max(300),pickup_date:z.string().date(),pickup_slot:z.string().max(40).default(''),

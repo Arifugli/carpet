@@ -3,10 +3,11 @@ import {z} from 'zod';
 import {COMMANDS,commandNames} from '../commands.js';
 import {allow,can} from '../permissions.js';
 import {checked,HttpError} from '../http.js';
+import {webhookURL} from '../integration-security.js';
 
 const filters=z.object({branch_id:z.string().uuid().optional(),date:z.string().date().optional(),limit:z.coerce.number().int().min(1).max(100).optional(),cursor:z.string().max(600).optional(),phone:z.string().max(32).optional(),client_id:z.string().uuid().optional(),order_id:z.string().uuid().optional(),driver_id:z.string().uuid().optional(),stage:z.enum(['received','washing','drying','quality_check','packing','ready']).optional(),status:z.enum(['open','done']).optional(),label:z.string().regex(/^K-[1-9]\d{0,14}(?:-[1-9]\d{0,2})?$/i).optional()}).strict();
 const viewPermissions={bootstrap:'read',client:'clients',leads:'leads',calls:'calls',tasks:'tasks',dispatch:'dispatch',driver:'read',workshop:'workshop',scan:'read',payments:'read',admin:'staff'};
-export function createWorkspaces(db){
+export function createWorkspaces(db,config={}){
  const router=Router();
  router.get('/workspaces/:view',async(req,res)=>{
   const view=z.enum(Object.keys(viewPermissions)).parse(req.params.view);
@@ -25,6 +26,7 @@ export function createWorkspaces(db){
   const name=z.enum(commandNames()).parse(req.params.command),definition=COMMANDS[name];
   if(!can(req.user,definition.permission))throw new HttpError(403,'Недостаточно прав','FORBIDDEN');
   const data=definition.schema.parse(req.body),key=z.string().uuid().parse(req.get('Idempotency-Key'));
+  if(name==='webhook.save')webhookURL(data.url,config.webhookHosts);
   res.json(checked(await db.rpc('crm_command',{p_command:name,p_data:data,p_user:req.user.id,p_ip:req.ip,p_key:key})));
  });
  router.post('/staff/create',allow('staff'),async(req,res)=>{

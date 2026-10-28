@@ -12,7 +12,7 @@ import {t,money,date} from './i18n.js';
  const select=(name,label,items,value='',required=false)=>{const id=`desk-${++controlId}`;return `<div class="field"><label for="${id}">${esc(t(label))}</label><select id="${id}" name="${name}" ${required?'required':''}><option value="">${esc(t('noData'))}</option>${items.map(([id,name])=>`<option value="${esc(id)}" ${String(id)===String(value)?'selected':''}>${esc(name)}</option>`).join('')}</select></div>`;};
  const field=(name,label,type='text',value='',extra='')=>{const id=`desk-${++controlId}`;return `<div class="field"><label for="${id}">${esc(t(label))}</label><input id="${id}" name="${name}" type="${type}" value="${esc(value)}" ${extra}></div>`;};
  const choices={outcome:['new','callback','no_result','refused'],direction:['in','out'],kind:['pickup','delivery'],method:['cash','terminal','bank'],role:['admin','manager','operator','dispatcher','driver','workshop'],channel:['sms','telegram'],locale:['ru','uz'],catalogKind:['source','zone','slot','defect','failure','tag','cancel_reason'],setting:['urgent_pct','stains_pct','pensioner_pct','delivery_fee','free_delivery_from']};
- const enumOptions=key=>choices[key].map(v=>[v,t(v)]);
+ const enumOptions=key=>choices[key].map(v=>Array.isArray(v)?v:[v,t(v)]);
  const forms={
   'lead.save':{title:'newLead',fields:[['phone','phone','tel',true],['name','name'],['source','source','source'],['outcome','outcome','outcome',true],['reason_code','cancelReason','reasons'],['comment','comment','textarea'],['callback_at','callback_at','datetime-local']]},
   'call.log':{title:'newCall',fields:[['phone','phone','tel',true],['direction','direction','direction',true],['outcome','outcome','callOutcome',true],['source','source','source'],['recording_url','recording','url']]},
@@ -35,7 +35,7 @@ import {t,money,date} from './i18n.js';
   ...(u.permissions.includes('clients')?['clients']:[]),...(u.permissions.includes('leads')?['leads']:[]),...(u.permissions.includes('calls')?['calls']:[]),
   ...(u.permissions.includes('tasks')?['tasks']:[]),...(u.permissions.includes('dispatch')?['dispatch']:[]),...(u.role==='driver'?['driverDesk']:[]),
   ...(u.permissions.includes('workshop')?['workshopDesk']:[]),...(u.permissions.includes('staff')?['adminDesk']:[]),
-  ...state.extra.filter(f=>u.permissions.includes(f.permission)).map(f=>f.key),'queue'];
+  ...state.extra.filter(f=>u.permissions.includes(f.permission)&&(!f.roles||f.roles.includes(u.role))).map(f=>f.key),'queue'];
  async function prepare(){
   try{state.meta=await ui().api('/workspaces/bootstrap');await window.CRMOffline?.snapshot(user().id,'bootstrap',state.meta).catch(()=>{});}
   catch(e){if(!e.network)throw e;state.meta=await window.CRMOffline?.read(user().id,'bootstrap').catch(()=>null)||state.meta;}
@@ -63,7 +63,8 @@ import {t,money,date} from './i18n.js';
   return choices[type]?enumOptions(type):null;
  }
  async function openForm(name,prefill={}){
-  if(name==='visit.schedule')state.orders=(await ui().api('/orders?limit=100')).data.filter(o=>!['cancelled','delivered'].includes(o.status));
+  prefill=Object.fromEntries(Object.entries(prefill).filter(([,v])=>v!==undefined));
+  if(forms[name]?.fields.some(f=>f[2]==='orders')){state.orders=(await ui().api('/orders?limit=100')).data;if(name==='visit.schedule')state.orders=state.orders.filter(o=>!['cancelled','delivered'].includes(o.status));}
   const definition=forms[name];if(!definition)return;
   prefill={active:true,source:'call_in',outcome:'new',direction:'in',scheduled_date:state.filters.date||state.meta.date||localDate(),due_at:localTime(),effective_at:localTime(),method:'cash',kind:name==='photo'?'intake':'pickup',role:'operator',channel:'sms',locale:'ru',branch_id:state.filters.branch_id||user().branch_id||state.meta.branches[0]?.id,workshop_capacity_m2:500,sla_hours:72,...prefill};
   if(name==='staff.create')prefill.active=false;if(name==='call.log')prefill.outcome='answered';
@@ -91,7 +92,7 @@ import {t,money,date} from './i18n.js';
    delete data.capacity;delete data.start;delete data.end;
   }
   if(form.dataset.deskForm==='staff.create')data.branch_id??=null;
-  return data;
+  return definition.transform?definition.transform(data):data;
  }
  async function photoBlob(file){
   if(!file||!/^image\/(jpeg|png|webp)$/.test(file.type)||file.size>15000000)throw new Error(t('photoInvalid'));
@@ -117,7 +118,7 @@ import {t,money,date} from './i18n.js';
    const load=Object.entries(rows.filter(v=>['planned','en_route'].includes(v.state)).reduce((a,v)=>{a[v.driver_id||'']=(a[v.driver_id||'']||0)+1;return a;},{})).map(([id,n])=>`${esc(staffName(id))}: ${n}`).join(' · ');
    $('#desk-list').innerHTML=`${view==='dispatch'?`<section class="box"><h2>${esc(t('load'))}</h2><p>${load}</p>${renderMap(sorted)}</section>`:''}<div class="cards">${sorted.map(v=>`<article class="card"><div class="row"><h2>${esc(v.code)}</h2><span class="pill">${esc(t(v.kind))} · ${esc(t(v.state))}</span></div><strong>${esc(v.client_name)}</strong><p>${esc(v.address)}</p><small>${esc(options('slot').find(x=>x[0]===v.slot_code)?.[1]||v.slot_code)} · ${esc(v.zone_code||'')}</small><p>${esc(staffName(v.driver_id))}</p><p>${money(v.total)} · ${esc(t('paid'))}: ${money(v.paid_amount)}</p><div class="actions"><a class="button" href="tel:${esc(String(v.phone).replace(/[^+\d]/g,''))}">${esc(t('callClient'))}</a><a class="button" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(v.latitude!=null?`${v.latitude},${v.longitude}`:v.address)}" target="_blank" rel="noreferrer">${esc(t('navigate'))}</a></div><div class="actions">${v.state==='planned'?button('departed','visit-event',`data-id="${v.id}" data-event="departed"`):''}${v.state==='en_route'&&!v.arrived_at?button('arrived','visit-arrived',`data-id="${v.id}"`):''}${v.state==='en_route'?button(v.kind==='pickup'?'markPickup':'markDelivery','visit-event',`data-id="${v.id}" data-event="completed"`):''}${['planned','en_route'].includes(v.state)?button('failedVisit','visit-problem',`data-id="${v.id}"`):''}${button('collectPayment','payment',`data-order="${v.order_id}"`)}${button('photo','photo',`data-order="${v.order_id}"`)}${view==='dispatch'?button('scheduleVisit','reschedule',`data-id="${v.id}"`):''}${button('details','order',`data-order="${v.order_id}"`)}</div></article>`).join('')}</div>`;
   }else if(view==='workshopDesk')$('#desk-list').innerHTML=`<div class="cards">${rows.map(o=>`<article class="card"><div class="row"><h2>${esc(o.code)}</h2><span class="pill">${esc(t(o.stage))}</span></div>${o.urgent?`<strong class="danger">${esc(t('urgent'))}</strong>`:''}<p>${esc(t('area'))}: ${esc(o.area_m2)}</p><small>${esc(t('stageStarted'))}: ${esc(date(o.stage_at))}</small><small>${esc(t('deadline'))}: ${esc(date(o.promised_at))}</small><div class="actions">${o.stage!=='ready'?button('nextStage','advance',`data-id="${o.id}" class="primary"`):''}${button('addDefect','defect',`data-id="${o.id}"`)}${button('photo','photo',`data-order="${o.id}"`)}${button('details','order',`data-order="${o.id}"`)}</div></article>`).join('')}</div>`;
-  else $('#desk-list').innerHTML=`<div class="cards">${rows.map(row=>`<article class="card"><strong>${esc(row.title||row.name||row.phone)}</strong><p>${esc(row.phone||row.note||row.comment||'')}</p><span class="pill">${esc(t(row.outcome||row.status))}</span><small>${esc(date(row.due_at||row.callback_at||row.started_at||row.created_at))}</small>${row.recording_url?`<a href="${esc(row.recording_url)}" target="_blank" rel="noreferrer">${esc(t('recording'))}</a>`:''}${view==='tasks'&&row.status==='open'?button('complete','task-complete',`data-id="${row.id}"`):''}${view==='calls'?button('clientSearch','phone-client',`data-phone="${esc(row.phone)}"`):''}</article>`).join('')}</div>`;
+  else $('#desk-list').innerHTML=`<div class="cards">${rows.map(row=>`<article class="card"><strong>${esc(row.title||row.name||row.phone)}</strong><p>${esc(row.phone||row.note||row.comment||'')}</p><span class="pill">${esc(t(row.outcome||row.status))}</span><small>${esc(date(row.due_at||row.callback_at||row.started_at||row.created_at))}</small>${row.recording_url?`<a href="${esc(row.recording_url)}" target="_blank" rel="noreferrer">${esc(t('recording'))}</a>`:''}${view==='tasks'&&row.status==='open'?button('complete','task-complete',`data-id="${row.id}"`):''}${view==='calls'?button('clientSearch','phone-client',`data-phone="${esc(row.phone)}"`)+(window.crmModules?.callActions?.(row)||''):''}</article>`).join('')}</div>`;
   $('#desk-pagination').innerHTML=state.cursor?button('more','more'):'';
  }
  async function load(append=false){
@@ -174,7 +175,7 @@ import {t,money,date} from './i18n.js';
    if(name==='photo'){
     const blob=await photoBlob(new FormData(form).get('photo'));await window.CRMOffline.enqueue(user().id,'photo',{}, {blob,item_id:data.item_id,kind:data.kind});ui().toast(t('photoQueued'));await window.CRMOffline.sync(user().id,ui().api);
    }else if(name==='staff.create'){await ui().api('/staff/create',{method:'POST',body:data,idempotencyKey:state.form.key});ui().toast(t('staffCreated'));}
-   else await command(forms[name].command||name,data,{queueable:['visit.problem','payment.record','workshop.defect'].includes(name),key:state.form.key});
+   else {const result=await command(forms[name].command||name,data,{queueable:['visit.problem','payment.record','workshop.defect'].includes(name),key:state.form.key});await forms[name].onResult?.(result,data);}
    $('#action').close();await prepare();if(state.view)await render(state.view);
   }catch(e){form.querySelector('[data-desk-error]').textContent=e.message;}finally{submit.disabled=false;}
  });
@@ -223,7 +224,7 @@ import {t,money,date} from './i18n.js';
   lookupInOrderForm:async(form,phone)=>{const data=await read('client',{phone});if(!data.client||!form.isConnected)return;for(const key of ['name','address'])if(!form.elements[key].value)form.elements[key].value=data.client[key]||'';let target=form.querySelector('[data-client-addresses]');if(!target){target=document.createElement('div');target.dataset.clientAddresses='';form.elements.address.closest('.field').after(target);}target.innerHTML=data.addresses.length>1?select('saved_address','addresses',data.addresses.map(a=>[a.address,`${a.label} ${a.address}`])):'';},
   logout:()=>{state.view=null;state.request++;stopCamera();},addFeature:feature=>state.extra.push(feature),
   orderFields:()=>`<div class="two">${select('branch_id','branch',state.meta.branches.filter(b=>b.active).map(b=>[b.id,b.name]),user()?.branch_id||state.meta.branches[0]?.id,true)}${select('zone_code','zone',options('zone'))}</div><div class="two">${field('latitude','latitude','number','','step="any" min="-90" max="90"')}${field('longitude','longitude','number','','step="any" min="-180" max="180"')}</div>`,
-  sourceOptions:()=>options('source'),getMeta:()=>state.meta,openForm,command,forms,
+  sourceOptions:()=>options('source'),getMeta:()=>state.meta,openForm,command,forms,choices,
   orderActions:o=>{state.detailOrder=o;const stage=o.production_stage||o.status;return `<div class="actions desk-order-actions">${has('workshop')&&!['ready','cancelled','delivered'].includes(stage)?button('nextStage','advance-detail',`data-order="${o.id}" data-stage="${esc(stage)}"`):''}${has('workshop')?button('addDefect','defect-detail'):''}${has('photos')?button('photo','photo',`data-order="${o.id}"`):''}${has('payments')?button('collectPayment','payment',`data-order="${o.id}"`):''}${user().role!=='workshop'?button('paymentHistory','payments',`data-order="${o.id}"`):''}</div>`;},
  };
 })();

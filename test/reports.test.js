@@ -50,6 +50,11 @@ test('выручка/структура: выдача, средний чек, п
  const mix=await report('mix',source);assert.equal(mix.rows[0].items,2);assert.equal(mix.summary.base_revenue,360000);examples.set('mix',mix);
  const times=await report('turnaround',source);assert.equal(times.summary.completed,2);assert.ok(times.rows.every(row=>row.average_hours==null||row.average_hours>=0));examples.set('turnaround',times);
 });
+
+test('выручка выполненных работ при отказе учитывается отдельно от выдачи и оплаты',async()=>{
+ const source=await scope(),id=await create(db,{source});await call(db,'assign_order_driver',[id,ids.admin,ids.driver,null]);await call(db,'change_order_status',[id,'pickup_assigned',ids.admin,null]);await call(db,'change_order_status',[id,'received',ids.admin,null]);
+ await call(db,'cancel_order',[id,ids.admin,'condition','Согласован отказ',20000,10000,null]);const r=await report('sales',source);assert.equal(r.summary.revenue,20000);assert.equal(r.summary.orders,0);assert.equal(r.summary.average_check,null);assert.equal(r.summary.area_m2,0);assert.equal(r.rows[0].cancelled_work_revenue,20000);
+});
 test('логистика: успешность, повторные выезды и измеренное время в пути',async()=>{
  const source=await scope(),id=await create(db,{source});
  const first=await cmd('visit.schedule',{order_id:id,kind:'pickup',scheduled_date:today,slot_code:'morning',driver_id:ids.driver},'dispatcher');

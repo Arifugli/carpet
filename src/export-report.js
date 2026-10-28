@@ -18,8 +18,8 @@ function cell(reference,value,style,{formula,format}={}){
 }
 function wrap(text,width=120){const lines=[];let line='';for(const word of String(text).split(/\s+/)){if(line.length+word.length>width&&line){lines.push(line);line='';}line+=(line?' ':'')+word;}if(line)lines.push(line);return lines;}
 
-export async function exportReport(report){
- const def=REPORTS[report.name],archive=unzipSync(new Uint8Array(await readFile(new URL('../assets/report-template.xlsx',import.meta.url))));
+export async function exportReport(report,definition=REPORTS[report.name]){
+ const def=definition,archive=unzipSync(new Uint8Array(await readFile(new URL('../assets/report-template.xlsx',import.meta.url))));
  let sheet=strFromU8(archive['xl/worksheets/sheet1.xml']);
  const getStyle=ref=>{const tag=sheet.match(new RegExp(`<x:c\\b[^>]*r="${ref}"[^>]*>`))?.[0];const s=tag?.match(/\bs="(\d+)"/)?.[1];if(s==null)throw new Error('INVALID_REPORT_TEMPLATE');return s;};
  const styles={title:getStyle('A2'),note:getStyle('A3'),label:getStyle('A5'),header:getStyle('A20'),text:getStyle('A21'),status:getStyle('A21'),integer:getStyle('B21'),money:getStyle('E21'),percent:getStyle('D21'),date:getStyle('F21'),decimal:getStyle('H21')};
@@ -48,7 +48,7 @@ export async function exportReport(report){
   if(kind==='knownSum')return range(a)?`IF(COUNT(${range(a)})=0,"",${sum(a)})`:'0';
   if(kind==='summaryRatio')return divide(summaryRef(a),summaryRef(b));
   if(kind==='sumRatio')return divide(sum(a),sum(b));
-  if(kind==='count')return range(def.columns[0][0])?`COUNTA(${range(def.columns[0][0])})`:'0';
+  if(kind==='count')return range(def.columns[0][0])?`ROWS(${range(def.columns[0][0])})`:'0';
   if(kind==='row')return `${col(a)}${first+Number(b)}`;
   if(kind==='npsTotal')return `IF(${sum(c)}=0,"",100*(${sum(a)}-${sum(b)})/${sum(c)})`;
   throw new Error('UNKNOWN_REPORT_FORMULA');
