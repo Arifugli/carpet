@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: kover-crm-api
+    runtime: node
+    plan: free            # на free-плане сервис «засыпает» после простоя; для боевого режима — starter
+    region: frankfurt     # ближайший к Узбекистану; Supabase тоже лучше создать во Frankfurt
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

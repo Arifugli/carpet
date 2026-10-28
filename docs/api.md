@@ -1,0 +1,102 @@
+# API — этап 1
+
+Все защищённые запросы: `Authorization: Bearer <access_token>`. `id` заказа — UUID или код `K-1041`. Неизвестные поля новых JSON-запросов отклоняются. Суммы целые, 0…999999999999 сум. Причины и комментарии обрезаются по краям и не могут быть пустыми. Переданный клиентом `p_user`, роль или IP не принимаются.
+
+| Метод | Путь | Право / назначение |
+|---|---|---|
+| GET | `/health` | Без входа, `{ok:true}`; проверяет HTTP-процесс |
+| POST | `/api/public/login` | Без входа, `{email,password}` → `{access_token,expires_at}` |
+| GET | `/api/public/track/:token` | Без входа, публичная информация без персональных данных |
+| GET | `/api/me` | Активный сотрудник, профиль и список `permissions` |
+| GET | `/api/clients/lookup?phone=` | `create`: admin/operator; клиент и до 5 последних неудалённых заказов |
+| GET | `/api/drivers` | `assign`: admin/operator; активные водители |
+| GET | `/api/staff` | `trash`: admin/manager; сотрудники для фильтра и имён аудита |
+| GET | `/api/tariffs` | Активный сотрудник; тарифы и параметры |
+| PUT | `/api/tariffs/:code` | admin; `{name,price_per_m2,active?}`, изменение с аудитом |
+| POST | `/api/quote` | admin/operator/manager; расчёт через `quote_order` |
+| POST | `/api/orders` | admin/operator; атомарное создание и аудит, обязателен `Idempotency-Key` |
+| GET | `/api/orders` | `read`, с ограничением водителя/цеха; корзина исключена |
+| GET | `/api/orders/:id` | `read`, те же ограничения; неудалённый заказ, состав, история, подписанные фото |
+| PATCH | `/api/orders/:id/driver` | admin/operator; `{driver_id: UUID|null}`, транзакционно с аудитом |
+| POST | `/api/orders/:id/status` | `status`: admin/operator/driver/workshop по SQL; `{status,note?}` |
+| GET | `/api/cancel-reasons` | Активный сотрудник; `{code,name_ru,name_uz}[]`, только действующие |
+| POST | `/api/orders/:id/cancel` | admin/manager; operator только new; причина, комментарий, суммы |
+| POST | `/api/orders/:id/deletion-request` | Только operator и только new, `{reason}`, ответ 201 |
+| DELETE | `/api/orders/:id` | admin/manager, `{reason}`, **только soft delete** |
+| GET | `/api/trash` | admin/manager; корзина с неизменным снимком данных |
+| GET | `/api/trash/:id` | admin/manager; полная карточка удалённого заказа и `delete_snapshot` |
+| POST | `/api/orders/:id/restore` | admin/manager; `{}`, восстановление прежнего статуса |
+| GET | `/api/audit-log` | admin/manager; журнал, только чтение |
+| POST | `/api/items/:itemId/photo-upload` | `photos`, область видимости заказа; `{}` → `{path,signedUrl,token}` |
+| POST | `/api/items/:itemId/photos` | `photos`, область видимости; `{path,kind?}`, регистрация с аудитом |
+
+Причины `cancel_reasons`: `expensive`, `changed_mind`, `unreachable`, `competitor`, `timing`, `condition`, `other`. `kind` фото: `intake` / `ready`. Путь фото должен совпадать с выданным `order_id/item_id/UUID.jpg`. Нельзя зарегистрировать фото удалённого/чужого заказа, в том числе при удалении между запросами.
+
+## Создание и превью
+
+```json
+{
+  "name":"Дилноза", "phone":"+998901234567", "address":"Ташкент, Навои 14",
+  "pickup_date":"2026-10-30", "pickup_slot":"10:00–13:00", "source":"call_in",
+  "urgent":false, "stains":false, "pensioner":false,
+  "items":[{"length_m":3,"width_m":2,"tariff":"wool","note":"Пятно от чая"}]
+}
+```
+
+Для POST `/orders` добавьте `Idempotency-Key: <UUID>`; один ключ относится к одному сотруднику и одному payload. Первичный и повторный успешный запрос возвращают 201 и тот же заказ. Изменённый payload с прежним ключом или повтор после удаления — 409. Для исправленного payload используйте новый ключ; при сетевой неопределённости сначала повторите прежний запрос с прежним ключом.
+
+Для `/quote` телефон, адрес и дата необязательны. Размеры 0.3…20 м, 1…30 ковров, source: `call_in/call_out/instagram/telegram`. Телефон нормализуется от пробелов/скобок/дефисов и требует `+998` + 9 цифр. Дату проверяет zod как календарную дату. Цена в JS не вычисляется.
+
+## Отказ
+
+```json
+{
+  "reason_code":"condition",
+  "comment":"Не принимаем ковёр в таком состоянии",
+  "completed_work_amount":20000,
+  "payment_amount":0
+}
+```
+
+Комментарий обязателен, до 1000 символов. Если ковёр уже когда-либо был в цехе, обе суммы обязательны. `payment_amount` — дополнительно принятая сейчас оплата, она прибавляется к прежней `paid_amount`. Для отказа до приёмки суммы можно не передавать, тогда используются нули. `total` не пересчитывается, чтобы сохранить исходную стоимость заявки. Отказ возвращает карточку с `status=cancelled`, `cancel_reason_code`, `cancelled_from_status`, автором и временем.
+
+Отмена `delivered` или повторная отмена — 409. `/status` со значением `cancelled` — 400; старый SQL RPC также запрещает обход обязательной причины. Отмена удалённого заказа — 404.
+
+## Списки и курсор
+
+`/orders`, `/trash`, `/audit-log` возвращают:
+
+```json
+{"data":[],"next_cursor":null}
+```
+
+`limit`: 1…100, по умолчанию 50. Следующая страница: передать неизменный `next_cursor` как query `cursor`, сохранив прежние фильтры. Конец — `null`. Сортировка: timestamp DESC, id DESC. UUID используется для заказов; bigint ID аудита передаётся строкой в курсоре.
+
+Фильтры `/orders`:
+
+- `status`: один из `new/pickup_assigned/received/washing/drying/ready/delivering/delivered/cancelled`;
+- `q`: код, имя или телефон, до 120 символов;
+- `date`: дата забора `YYYY-MM-DD`;
+- `deletion_requested=true`: очередь заявок, только admin/manager.
+
+Фильтры `/trash`:
+
+- `deleted_by`: UUID сотрудника;
+- `from`, `to`: ISO 8601 с часовым поясом, включительно. Например, сутки Ташкента: `2026-10-28T00:00:00+05:00` … `2026-10-28T23:59:59.999+05:00`. В URL кодировать `+` как `%2B`;
+- `reason`: буквальный фрагмент причины до 500 символов; `%`/`_` не расширяют поиск.
+
+Фильтры `/audit-log`: `entity_id` UUID, `action` из `created/cancelled/deletion_requested/deleted/restored/status_changed/driver_assigned/updated`. `entity_id` может обозначать заказ, клиента, ковёр или фото; для тарифа используется стабильный UUID `md5('tariff:'||code)::uuid`, сам code есть в before/after.
+
+## Корзина и аудит
+
+Удаление не меняет status. `deleted_at/deleted_by/delete_reason/deleted_status/delete_snapshot` фиксируют событие; `delete_snapshot` содержит клиента, адрес, состав, цены, фото, историю и имя/роль удалившего. Данные связей физически не удаляются. Для отображения исторической карточки используйте снимок, поскольку карточка общего клиента может позже измениться.
+
+Восстановление очищает текущие `deleted_at/deleted_by/delete_reason`, записывает `restored_at/restored_by`, оставляет `delete_snapshot/deleted_status` как след. Полная история циклов — в `audit_log`; `restored_*` отражает последнее восстановление. Не создаётся фиктивная смена статуса. Заявка оператора автоматически снимается при выходе из new или удалении.
+
+Журнал: `id, at, user_id, role, entity, entity_id, action, before, after, ip`. Токен публичного статуса в аудит заказа не включается. API записи/правки/удаления аудита отсутствуют; аудит создаётся триггерами в транзакции действия.
+
+## Ошибки и ограничения
+
+Формат: `{error: "Сообщение на русском", code: "...", fields?: ["поле"]}`. 400 — входные данные; 401 — требуется вход; 403 — права/неактивный профиль; 404 — отсутствующий или скрытый заказ; 409 — закрытый заказ/запрет удаления/конфликт идемпотентности; 429 — лимит запросов; 500 — ошибка сервера. Повтор удаления/восстановления через HTTP обычно даёт 404, поскольку заказ уже отсутствует в соответствующем списке; SQL дополнительно защищает повтор конфликтом 409.
+
+Публичный статус удалённого/неизвестного/неверного токена: одинаковые 404 и `TRACK_UNAVAILABLE`, без кода, причин и клиентских данных. Вход — до 10 попыток/мин/IP, отслеживание — до 30/мин/IP, защищённый API — до 240/мин/IP. При развёртывании нескольких инстансов потребуется общий store rate limiter; текущий ограничитель хранится в памяти процесса.
