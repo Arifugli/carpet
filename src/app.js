@@ -9,6 +9,7 @@ import { createOrders } from './routes/orders.js';
 import { createPublicApi,createStaffApi } from './routes/misc.js';
 import { HttpError } from './http.js';
 import {createWorkspaces} from './routes/workspaces.js';
+import {createReports} from './routes/reports.js';
 
 export function createApp({db,authClient,config={},authenticate}={}) {
  const app=express();
@@ -19,7 +20,7 @@ export function createApp({db,authClient,config={},authenticate}={}) {
  app.get('/health',(_req,res)=>res.json({ok:true}));
  app.use('/api',(req,res,next)=>{res.set('Cache-Control','no-store');next();});
  app.use('/api/public',createPublicApi(db,authClient));
- app.use('/api',rateLimit({windowMs:60000,limit:240,message:{error:'Слишком много запросов. Повторите позже.',code:'RATE_LIMIT'}}),authenticate||createAuth(db),createWorkspaces(db),createStaffApi(db,config),createOrders(db,config));
+ app.use('/api',rateLimit({windowMs:60000,limit:240,message:{error:'Слишком много запросов. Повторите позже.',code:'RATE_LIMIT'}}),authenticate||createAuth(db),createReports(db),createWorkspaces(db),createStaffApi(db,config),createOrders(db,config));
  app.use(express.static(fileURLToPath(new URL('../public',import.meta.url))));
  app.get('/track/:token',(_req,res)=>res.sendFile(fileURLToPath(new URL('../public/index.html',import.meta.url))));
  app.use('/api',(_req,res)=>res.status(404).json({error:'Маршрут не найден',code:'NOT_FOUND'}));

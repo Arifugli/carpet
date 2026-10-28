@@ -26,6 +26,8 @@ export const t=key=>dictionaries[locale]?.[key]??dictionaries.ru[key]??key;
 export const money=value=>`${Number(value||0).toLocaleString('ru-RU')} ${t('currency')}`;
 export const date=value=>value?new Intl.DateTimeFormat('ru-RU',{timeZone:'Asia/Tashkent',dateStyle:'short',timeStyle:'short'}).format(new Date(value)):t('noData');
 Object.assign(dictionaries.ru,{
+ cancelledWorkUnknown:'Исторические отказы без стоимости работ — денежные суммы по ним неизвестны',
+ reports:'Отчёты',report:'Отчёт',exportExcel:'Экспорт отчёта в Excel',all:'Все',periodFrom:'Период с',periodTo:'Период по',chartFirstRows:'На диаграмме показаны первые 20 строк отчёта.',shownRows:'Показано строк',callsMissingAttribution:'Звонки с неуточнённым результатом — конверсия недоступна',deliveryTimesMissing:'Выданные заказы без сохранённой даты выдачи',arrived:'На месте',
  profiles:'Сотрудники',visits:'Задания',catalog_entries:'Справочники',client_addresses:'Адреса клиентов',visit_events:'События визитов',production_events:'Этапы цеха',order_defects:'Дефекты',payments:'Оплаты',tariff_versions:'История тарифов',setting_versions:'История параметров',notification_templates:'Шаблоны уведомлений',cancel_reasons:'Причины отказов',access_link_generated:'Создана ссылка восстановления доступа',
  latitude:'Широта',longitude:'Долгота',photoInvalid:'Выберите фотографию JPEG, PNG или WebP размером до 15 МБ.',visit:'Задание',payment:'Оплата',
  clients:'Клиенты',leads:'Обращения',calls:'Звонки',tasks:'Напоминания',dispatch:'Диспетчерская',driverDesk:'Мои задания',workshopDesk:'Цех',adminDesk:'Управление',dispatcher:'Диспетчер',

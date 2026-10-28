@@ -205,6 +205,6 @@ async function start() {
  if(!state.token)return loginScreen();
  try{await initializeStaff();}catch(e){logout();toast(e.message);}
 }
-window.crmUI={api,user:()=>state.user,has,toast,openOrder:openDetail,newOrder,navigate:async view=>{state.view=view;state.filters={};await listScreen();},refresh:()=>listScreen()};
+window.crmUI={api,user:()=>state.user,has,toast,openOrder:openDetail,newOrder,navigate:async view=>{state.view=view;state.filters={};await listScreen();},refresh:()=>listScreen(),download:async(path,filename)=>{const response=await fetch(`/api${path}`,{headers:{Authorization:`Bearer ${state.token}`}});if(!response.ok){const data=await response.json();throw new Error(data.error||t('error'));}const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}};
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 start();

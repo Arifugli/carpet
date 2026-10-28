@@ -14,6 +14,7 @@ export const COMMANDS={
  'task.complete':{permission:'tasks',schema:object({task_id:uuid})},
  'visit.schedule':{permission:'dispatch',schema:object({order_id:uuid,kind:z.enum(['pickup','delivery']),scheduled_date:z.string().date(),slot_code:code,zone_code:code.optional(),driver_id:uuid.optional(),position:z.number().int().min(0).max(999).optional(),note})},
  'visit.event':{permission:'status',schema:object({visit_id:uuid,event:z.enum(['departed','completed','failed']),expected_state:z.enum(['planned','en_route']),failure_reason:code.optional(),note,...geo})},
+ 'visit.arrived':{permission:'status',schema:object({visit_id:uuid})},
  'workshop.advance':{permission:'workshop',schema:object({order_id:uuid,expected_stage:z.enum(['received','washing','drying','quality_check','packing']),note})},
  'workshop.defect':{permission:'workshop',schema:object({order_id:uuid,item_id:uuid.optional(),defect_code:code,note:text(1000),photo_id:uuid.optional()})},
  'payment.record':{permission:'payments',schema:object({order_id:uuid,amount:z.number().int().min(1).max(999999999999),method:z.enum(['cash','terminal','bank']),note})},

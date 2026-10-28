@@ -1,3 +1,4 @@
+import {listen} from './helpers/listen.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
@@ -27,8 +28,7 @@ test('браузер: оператор → заявка и отказ → адм
   }catch(e){return {data:null,error:{code:e.code,message:e.message}};}
  };
  const authClient={auth:{signInWithPassword:async({email})=>({data:{session:{access_token:email.split('@')[0],expires_at:9999999999}}})}};
- const server=createApp({db,authClient,config:{trustProxy:false}}).listen(0,'127.0.0.1');
- await new Promise(resolve=>server.once('listening',resolve));
+ const server=await listen(createApp({db,authClient,config:{trustProxy:false}}));
  const url=`http://127.0.0.1:${server.address().port}`;
  let browser;
  try {

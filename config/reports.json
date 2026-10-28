@@ -1,0 +1,630 @@
+{
+  "funnel": {
+    "title": "Воронка",
+    "note": "Заказы — когорта по дате создания. Конверсия звонков использует привязанные заказы и недоступна при неуточнённых результатах звонков.",
+    "chart": "count",
+    "columns": [
+      [
+        "stage",
+        "Этап",
+        "text"
+      ],
+      [
+        "count",
+        "Количество",
+        "integer"
+      ],
+      [
+        "converted",
+        "Перешло на этап",
+        "integer"
+      ],
+      [
+        "base",
+        "Основание конверсии",
+        "integer"
+      ],
+      [
+        "conversion",
+        "Конверсия",
+        "percent",
+        "ratio:converted:base"
+      ]
+    ],
+    "totals": [
+      [
+        "calls",
+        "Звонки",
+        "integer",
+        "row:count:0"
+      ],
+      [
+        "orders",
+        "Заявки",
+        "integer",
+        "row:count:1"
+      ],
+      [
+        "completed",
+        "Выполнено",
+        "integer",
+        "row:count:3"
+      ],
+      [
+        "paid",
+        "Оплачено",
+        "integer",
+        "row:count:4"
+      ]
+    ]
+  },
+  "cancellations": {
+    "title": "Отказы",
+    "note": "Отказы когорты заказов по периоду создания. Потерянная выручка — исходная цена за вычетом выполненных работ. Историческая неизвестная причина сохранена отдельно.",
+    "chart": "count",
+    "columns": [
+      [
+        "reason",
+        "Причина",
+        "text"
+      ],
+      [
+        "stage",
+        "Этап отказа",
+        "status"
+      ],
+      [
+        "operator",
+        "Оператор",
+        "text"
+      ],
+      [
+        "count",
+        "Отказы",
+        "integer"
+      ],
+      [
+        "share",
+        "Доля отказов",
+        "percent",
+        "denominator:count:cancelled"
+      ],
+      [
+        "cancellation_rate",
+        "Доля заявок",
+        "percent",
+        "denominator:count:orders"
+      ],
+      [
+        "lost_revenue",
+        "Потерянная выручка, сум",
+        "money"
+      ],
+      [
+        "work_amount",
+        "Выполненные работы, сум",
+        "money"
+      ]
+    ],
+    "totals": [
+      [
+        "orders",
+        "Заявки когорты",
+        "integer"
+      ],
+      [
+        "cancelled",
+        "Отказы",
+        "integer",
+        "sum:count"
+      ],
+      [
+        "rate",
+        "Доля отказов",
+        "percent",
+        "summaryRatio:cancelled:orders"
+      ],
+      [
+        "lost_revenue",
+        "Потерянная выручка, сум",
+        "money",
+        "knownSum:lost_revenue"
+      ]
+    ]
+  },
+  "sales": {
+    "title": "Выручка и объём",
+    "note": "Выручка = цена выданных заказов + выполненные работы при отказе, по дате события. Средний чек и площадь — по выдаче. Поступления оплаты учитываются отдельно.",
+    "chart": "revenue",
+    "columns": [
+      [
+        "day",
+        "День",
+        "date"
+      ],
+      [
+        "orders",
+        "Выдано заказов",
+        "integer"
+      ],
+      [
+        "revenue",
+        "Выручка, сум",
+        "money",
+        "add:delivered_revenue:cancelled_work_revenue"
+      ],
+      [
+        "cancelled_work_revenue",
+        "Работы при отказе, сум",
+        "money"
+      ],
+      [
+        "area_m2",
+        "Площадь, м²",
+        "decimal"
+      ],
+      [
+        "urgent_orders",
+        "Срочные",
+        "integer"
+      ],
+      [
+        "average_check",
+        "Средний чек выдачи, сум",
+        "money",
+        "ratio:delivered_revenue:orders"
+      ],
+      [
+        "urgent_share",
+        "Доля срочных",
+        "percent",
+        "ratio:urgent_orders:orders"
+      ],
+      [
+        "delivered_revenue",
+        "Выручка выдачи, сум",
+        "money"
+      ]
+    ],
+    "totals": [
+      [
+        "orders",
+        "Выдано заказов",
+        "integer",
+        "sum:orders"
+      ],
+      [
+        "revenue",
+        "Выручка, сум",
+        "money",
+        "sum:revenue"
+      ],
+      [
+        "average_check",
+        "Средний чек, сум",
+        "money",
+        "sumRatio:delivered_revenue:orders"
+      ],
+      [
+        "area_m2",
+        "Площадь, м²",
+        "decimal",
+        "sum:area_m2"
+      ]
+    ]
+  },
+  "mix": {
+    "title": "Структура стирки",
+    "note": "Базовая стоимость ковров выданных заказов, без надбавок и доставки. Состав сгруппирован по тарифу.",
+    "chart": "base_revenue",
+    "columns": [
+      [
+        "tariff",
+        "Тариф",
+        "text"
+      ],
+      [
+        "items",
+        "Ковры",
+        "integer"
+      ],
+      [
+        "area_m2",
+        "Площадь, м²",
+        "decimal"
+      ],
+      [
+        "base_revenue",
+        "Базовая стоимость, сум",
+        "money"
+      ]
+    ],
+    "totals": [
+      [
+        "items",
+        "Ковры",
+        "integer",
+        "sum:items"
+      ],
+      [
+        "area_m2",
+        "Площадь, м²",
+        "decimal",
+        "sum:area_m2"
+      ],
+      [
+        "base_revenue",
+        "Базовая стоимость, сум",
+        "money",
+        "sum:base_revenue"
+      ]
+    ]
+  },
+  "turnaround": {
+    "title": "Сроки выполнения",
+    "note": "Когорта по дате заявки. Средняя длительность этапа учитывает только завершённые интервалы. Контроль и упаковка выделены отдельно.",
+    "chart": "average_hours",
+    "columns": [
+      [
+        "stage",
+        "Этап",
+        "status"
+      ],
+      [
+        "stages",
+        "Начато этапов",
+        "integer"
+      ],
+      [
+        "completed_stages",
+        "Завершено этапов",
+        "integer"
+      ],
+      [
+        "completed_hours",
+        "Завершённые интервалы, ч",
+        "decimal"
+      ],
+      [
+        "average_hours",
+        "Средняя длительность, ч",
+        "decimal",
+        "ratio:completed_hours:completed_stages"
+      ],
+      [
+        "in_progress",
+        "Сейчас на этапе",
+        "integer"
+      ],
+      [
+        "total_hours",
+        "Учтённое время, ч",
+        "decimal"
+      ]
+    ],
+    "totals": [
+      [
+        "completed",
+        "Выдано заказов",
+        "integer"
+      ],
+      [
+        "average_hours",
+        "Заявка → выдача, ч",
+        "decimal"
+      ],
+      [
+        "late_orders",
+        "Просрочено заказов",
+        "integer"
+      ]
+    ]
+  },
+  "logistics": {
+    "title": "Логистика",
+    "note": "Визиты по дате задания. Успешность — выполненные / (выполненные + неудачные). Время в пути требует отдельных отметок выезда и прибытия.",
+    "chart": "visits",
+    "columns": [
+      [
+        "driver",
+        "Водитель",
+        "text"
+      ],
+      [
+        "visits",
+        "Все визиты",
+        "integer"
+      ],
+      [
+        "completed",
+        "Успешные",
+        "integer"
+      ],
+      [
+        "success_rate",
+        "Успешность",
+        "percent",
+        "success:completed:failed"
+      ],
+      [
+        "failed",
+        "Неудачные",
+        "integer"
+      ],
+      [
+        "repeat_visits",
+        "Повторные выезды",
+        "integer"
+      ],
+      [
+        "travel_minutes",
+        "В пути, мин",
+        "decimal"
+      ],
+      [
+        "measured_visits",
+        "Измерено визитов",
+        "integer"
+      ],
+      [
+        "average_travel_minutes",
+        "Среднее в пути, мин",
+        "decimal",
+        "ratio:travel_minutes:measured_visits"
+      ]
+    ],
+    "totals": [
+      [
+        "visits",
+        "Визиты",
+        "integer",
+        "sum:visits"
+      ],
+      [
+        "completed",
+        "Успешные",
+        "integer",
+        "sum:completed"
+      ],
+      [
+        "measured_visits",
+        "Измерено времени в пути",
+        "integer",
+        "sum:measured_visits"
+      ]
+    ]
+  },
+  "quality": {
+    "title": "Качество и NPS",
+    "note": "Рекламации и оценки, полученные в периоде. NPS = 100 × (оценки 9–10 − оценки 0–6) / ответы. Без ответов NPS недоступен.",
+    "chart": "complaints",
+    "columns": [
+      [
+        "day",
+        "День",
+        "date"
+      ],
+      [
+        "complaints",
+        "Рекламации",
+        "integer"
+      ],
+      [
+        "rewashes",
+        "Повторные стирки",
+        "integer"
+      ],
+      [
+        "responses",
+        "Ответы",
+        "integer"
+      ],
+      [
+        "promoters",
+        "Оценки 9–10",
+        "integer"
+      ],
+      [
+        "detractors",
+        "Оценки 0–6",
+        "integer"
+      ],
+      [
+        "nps",
+        "NPS, пунктов",
+        "decimal",
+        "nps:promoters:detractors:responses"
+      ],
+      [
+        "average_score",
+        "Средняя оценка",
+        "decimal"
+      ]
+    ],
+    "totals": [
+      [
+        "complaints",
+        "Рекламации",
+        "integer",
+        "sum:complaints"
+      ],
+      [
+        "rewashes",
+        "Повторные стирки",
+        "integer",
+        "sum:rewashes"
+      ],
+      [
+        "responses",
+        "Ответы",
+        "integer",
+        "sum:responses"
+      ],
+      [
+        "nps",
+        "NPS, пунктов",
+        "decimal",
+        "npsTotal:promoters:detractors:responses"
+      ]
+    ]
+  },
+  "debt": {
+    "title": "Задолженность",
+    "note": "Текущий остаток к получению по заказам, созданным в периоде. После отказа начисление равно выполненным работам. Это текущий остаток когорты, не исторический баланс на конец периода.",
+    "chart": "debt",
+    "columns": [
+      [
+        "code",
+        "Заказ",
+        "text"
+      ],
+      [
+        "client",
+        "Клиент",
+        "text"
+      ],
+      [
+        "day",
+        "Дата заявки",
+        "date"
+      ],
+      [
+        "liability",
+        "Начислено, сум",
+        "money"
+      ],
+      [
+        "paid",
+        "Оплачено, сум",
+        "money"
+      ],
+      [
+        "debt",
+        "Остаток, сум",
+        "money",
+        "debt:liability:paid"
+      ],
+      [
+        "age_days",
+        "Дней с заявки",
+        "integer"
+      ],
+      [
+        "phone",
+        "Телефон",
+        "text"
+      ]
+    ],
+    "totals": [
+      [
+        "orders",
+        "Заказов с остатком",
+        "integer",
+        "count"
+      ],
+      [
+        "debt",
+        "К получению, сум",
+        "money",
+        "sum:debt"
+      ],
+      [
+        "paid",
+        "Уже оплачено, сум",
+        "money",
+        "sum:paid"
+      ]
+    ]
+  },
+  "retention": {
+    "title": "Повторные и спящие клиенты",
+    "note": "История неудалённых и неотменённых заказов до конца периода с выбранными фильтрами. Повторный клиент — не менее двух заказов; спящий — без заказа указанное число дней.",
+    "chart": "days_since",
+    "columns": [
+      [
+        "client",
+        "Клиент",
+        "text"
+      ],
+      [
+        "first_order",
+        "Первый заказ",
+        "date"
+      ],
+      [
+        "last_order",
+        "Последний заказ",
+        "date"
+      ],
+      [
+        "orders",
+        "Заказы за всё время",
+        "integer"
+      ],
+      [
+        "period_orders",
+        "Заказы в периоде",
+        "integer"
+      ],
+      [
+        "repeat_period_orders",
+        "Повторные в периоде",
+        "integer"
+      ],
+      [
+        "days_since",
+        "Дней без заказа",
+        "integer"
+      ],
+      [
+        "repeat_client",
+        "Повторный, 1/0",
+        "integer",
+        "repeat:orders"
+      ],
+      [
+        "sleeping",
+        "Спящий, 1/0",
+        "integer",
+        "sleeping:days_since"
+      ]
+    ],
+    "totals": [
+      [
+        "clients",
+        "Клиенты",
+        "integer",
+        "count"
+      ],
+      [
+        "repeat_clients",
+        "Повторные клиенты",
+        "integer",
+        "sum:repeat_client"
+      ],
+      [
+        "repeat_share",
+        "Доля повторных клиентов",
+        "percent",
+        "summaryRatio:repeat_clients:clients"
+      ],
+      [
+        "sleeping",
+        "Спящие клиенты",
+        "integer",
+        "sum:sleeping"
+      ],
+      [
+        "dormant_days",
+        "Порог неактивности, дни",
+        "integer"
+      ],
+      [
+        "repeat_order_share",
+        "Доля повторных заказов",
+        "percent",
+        "sumRatio:repeat_period_orders:period_orders"
+      ]
+    ]
+  }
+}

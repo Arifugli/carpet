@@ -1,6 +1,7 @@
 import {createApp} from '../../src/app.js';
 import {fakeDb} from './fake-db.js';
 import {database,create,ids} from './database.js';
+import {listen} from './listen.js';
 
 export async function workflowServer() {
  const sql=await database(),db=fakeDb(),orderId=await create(sql);
@@ -21,7 +22,6 @@ export async function workflowServer() {
   }catch(e){return {data:null,error:{code:e.code,message:e.message}};}
  };
  const authClient={auth:{signInWithPassword:async({email})=>({data:{session:{access_token:email.split('@')[0],expires_at:9999999999}}})}};
- const server=createApp({db,authClient,config:{trustProxy:false}}).listen(0,'127.0.0.1');
- await new Promise(resolve=>server.once('listening',resolve));
+ const server=await listen(createApp({db,authClient,config:{trustProxy:false}}));
  return {sql,db,orderId,url:`http://127.0.0.1:${server.address().port}`,close:async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await sql.close();}};
 }

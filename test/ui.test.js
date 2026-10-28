@@ -16,7 +16,7 @@ test('DOM + HTTP + SQL: оператор запрашивает удаление
   window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
   window.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
   // Только модульная оболочка снята для jsdom, весь код интерфейса выполняется без подмены.
-  window.eval(`${dict.replace(/\bexport /g,'')}\n${app.replace(/^import .*;\r?\n/,'')}`);
+  window.eval(`${dict.replace(/^export /gm,'')}\n${app.replace(/^import .*;\r?\n/,'')}`);
   const click=(action)=>{const el=d.querySelector(`[data-action="${action}"]`);assert.ok(el,action);el.click();};
   const submit=kind=>d.querySelector(`[data-form="${kind}"]`).dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));
   const login=async role=>{

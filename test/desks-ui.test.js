@@ -15,7 +15,7 @@ test('экраны: повторный заказ, перезвон, доска 
   dom=new JSDOM(files[0],{url:fixture.url,runScripts:'outside-only'});const w=dom.window,d=w.document;
   Object.defineProperty(w,'indexedDB',{value:new IDBFactory()});w.crypto.randomUUID=randomUUID;w.fetch=(path,args)=>fetch(new URL(path,fixture.url),args);
   w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};w.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
-  w.eval(files.slice(1).map(code=>code.replace(/^import .*;\r?\n/gm,'').replace(/\bexport /g,'')).join('\n'));
+  w.eval(files.slice(1).map(code=>code.replace(/^import .*;\r?\n/gm,'').replace(/^export /gm,'')).join('\n'));
   const submit=selector=>d.querySelector(selector).dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
   const click=selector=>{assert.ok(d.querySelector(selector),selector);d.querySelector(selector).click();};
   const login=async role=>{await wait(()=>d.querySelector('[data-form=login]'));d.querySelector('[name=email]').value=`${role}@example.test`;d.querySelector('[name=password]').value='test';submit('[data-form=login]');await wait(()=>d.querySelector('nav'));};

@@ -1,3 +1,4 @@
+import {listen} from './helpers/listen.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createApp} from '../src/app.js';
@@ -7,7 +8,7 @@ import {PERMISSIONS} from '../src/permissions.js';
 
 async function server(role,fn,{auth=true}={}) {
  const db=fakeDb(role),app=createApp({db,config:{trustProxy:false},...(!auth?{authenticate:(req,res,next)=>{req.user={id:ids[role],role,permissions:PERMISSIONS[role]};next();}}:{})});
- const srv=app.listen(0,'127.0.0.1');await new Promise(resolve=>srv.once('listening',resolve));
+ const srv=await listen(app);
  const request=async(path,method='GET',body,token='valid')=>{
   const r=await fetch(`http://127.0.0.1:${srv.address().port}/api${path}`,{method,headers:{...(token?{Authorization:`Bearer ${token}`} :{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
   return {status:r.status,body:await r.json(),headers:r.headers};

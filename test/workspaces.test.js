@@ -97,8 +97,10 @@ test('этап 2: последний администратор и права у
  await cmd('staff.update',{user_id:ids.driver,role:'driver',active:true,full_name:'Водитель',branch_id:branch});
 });
 test('этап 2: новая миграция повторяется без изменения корзины и исходной цены',async()=>{
- const id=await create(db);await call(db,'soft_delete_order',[id,ids.admin,'Тест',null]);
- const original=(await db.query('select delete_snapshot,total from orders where id=$1',[id])).rows[0];
- await db.exec('reset role');await db.exec(await readFile(new URL('../supabase/migrations/0005_workspaces.sql',import.meta.url),'utf8'));await db.exec('set role service_role');
- const current=(await db.query('select delete_snapshot,total from orders where id=$1',[id])).rows[0];assert.deepEqual(current,original);
+ const copy=await database({stage:2});try{
+ const id=await create(copy);await call(copy,'soft_delete_order',[id,ids.admin,'Тест',null]);
+ const original=(await copy.query('select delete_snapshot,total from orders where id=$1',[id])).rows[0];
+ await copy.exec('reset role');await copy.exec(await readFile(new URL('../supabase/migrations/0005_workspaces.sql',import.meta.url),'utf8'));await copy.exec('set role service_role');
+ const current=(await copy.query('select delete_snapshot,total from orders where id=$1',[id])).rows[0];assert.deepEqual(current,original);
+ }finally{await copy.close();}
 });
