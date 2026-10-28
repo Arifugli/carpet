@@ -34,7 +34,9 @@ export function createStaffApi(db,{bucket='carpet-photos'}={}) {
   if (k.length<9) return res.json({client:null,orders:[]});
   const client=checked(await db.from('clients').select('*').eq('phone_key',k).maybeSingle());
   if (!client) return res.json({client:null,orders:[]});
-  const orders=checked(await db.from('orders').select('id,number,status,total,created_at').eq('client_id',client.id).is('deleted_at',null).order('created_at',{ascending:false}).limit(5));
+  let query=db.from('orders').select('id,number,status,total,created_at').eq('client_id',client.id).is('deleted_at',null).order('created_at',{ascending:false}).limit(5);
+  if(!['admin','manager'].includes(req.user.role))query=query.eq('branch_id',req.user.branch_id);
+  const orders=checked(await query);
   res.json({client,orders:orders.map(withCode)});
  });
  router.get('/drivers',allow('assign'),async(req,res)=>{
@@ -57,20 +59,22 @@ export function createStaffApi(db,{bucket='carpet-photos'}={}) {
  });
  const ownedItem=async req=>{
   const id=z.string().uuid().parse(req.params.itemId);
-  const it=checked(await db.from('order_items').select('id,order_id,order:orders(id,driver_id,status,deleted_at)').eq('id',id).maybeSingle());
+  const it=checked(await db.from('order_items').select('id,order_id,order:orders(id,driver_id,status,deleted_at,branch_id)').eq('id',id).maybeSingle());
   if (!it||!it.order||it.order.deleted_at) throw new HttpError(404,'Ковёр не найден','ITEM_NOT_FOUND');
   if (!canReadOrder(req.user,it.order)) throw new HttpError(403,'Недостаточно прав для этого заказа','FORBIDDEN');
   return it;
  };
  router.post('/items/:itemId/photo-upload',allow('photos'),async(req,res)=>{
-  z.object({}).strict().parse(req.body??{}); const it=await ownedItem(req);
-  const path=`${it.order_id}/${it.id}/${crypto.randomUUID()}.jpg`;
+  const b=z.object({upload_id:z.string().uuid().optional()}).strict().parse(req.body??{}); const it=await ownedItem(req);
+  const path=`${it.order_id}/${it.id}/${b.upload_id||crypto.randomUUID()}.jpg`;
   const data=checked(await db.storage.from(bucket).createSignedUploadUrl(path));
   res.json({path,signedUrl:data.signedUrl,token:data.token});
  });
  router.post('/items/:itemId/photos',allow('photos'),async(req,res)=>{
   const b=z.object({path:z.string().min(1).max(300),kind:z.enum(['intake','ready']).default('intake')}).strict().parse(req.body),it=await ownedItem(req);
   if (!new RegExp(`^${it.order_id}/${it.id}/[a-f0-9-]{36}\\.jpg$`).test(b.path)) throw new HttpError(400,'Неверный путь файла');
+  const key=req.get('Idempotency-Key');
+  if(key){z.string().uuid().parse(key);return res.status(201).json(checked(await db.rpc('crm_command',{p_command:'photo.register',p_data:{item_id:it.id,path:b.path,kind:b.kind},p_user:req.user.id,p_ip:req.ip,p_key:key})));}
   res.status(201).json(checked(await db.rpc('register_order_photo',{p_item:it.id,p_path:b.path,p_kind:b.kind,p_user:req.user.id,p_ip:req.ip})));
  });
  return router;

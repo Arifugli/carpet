@@ -20,15 +20,17 @@ test('цена из SQL: площадь, надбавки, округление,
  await assert.rejects(()=>call(db,'quote_order',[JSON.stringify({...input,items:[{length_m:1,width_m:1,tariff:'missing'}]})]));
 });
 test('миграции повторяемы и не меняют существующие данные',async()=>{
- const id=await create(db);
- const original=(await db.query('select updated_at from orders where id=$1',[id])).rows[0];
- const count=(await db.query('select count(*)::int n from audit_log where entity_id=$1',[id])).rows[0].n;
- await db.exec('reset role');
- for(const name of ['0002_manager_role.sql','0003_order_lifecycle.sql']) await db.exec(await readFile(new URL(`../supabase/migrations/${name}`,import.meta.url),'utf8'));
- await db.exec('set role service_role');
- assert.equal((await db.query('select status from orders where id=$1',[id])).rows[0].status,'new');
- assert.equal((await db.query('select updated_at from orders where id=$1',[id])).rows[0].updated_at.toISOString(),original.updated_at.toISOString());
- assert.equal((await db.query('select count(*)::int n from audit_log where entity_id=$1',[id])).rows[0].n,count);
+ const first=await database({stage:1});try{
+ const id=await create(first);
+ const original=(await first.query('select updated_at from orders where id=$1',[id])).rows[0];
+ const count=(await first.query('select count(*)::int n from audit_log where entity_id=$1',[id])).rows[0].n;
+ await first.exec('reset role');
+ for(const name of ['0002_manager_role.sql','0003_order_lifecycle.sql']) await first.exec(await readFile(new URL(`../supabase/migrations/${name}`,import.meta.url),'utf8'));
+ await first.exec('set role service_role');
+ assert.equal((await first.query('select status from orders where id=$1',[id])).rows[0].status,'new');
+ assert.equal((await first.query('select updated_at from orders where id=$1',[id])).rows[0].updated_at.toISOString(),original.updated_at.toISOString());
+ assert.equal((await first.query('select count(*)::int n from audit_log where entity_id=$1',[id])).rows[0].n,count);
+ }finally{await first.close();}
 });
 test('отказ: причина и комментарий обязательны; обход через старый RPC запрещён',async()=>{
  const id=await create(db);

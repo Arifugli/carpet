@@ -2,3 +2,6 @@
 import './api.test.js';
 import './lifecycle.test.js';
 import './ui.test.js';
+import './workspaces.test.js';
+import './offline.test.js';
+import './desks-ui.test.js';

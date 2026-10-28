@@ -1,4 +1,44 @@
-# API — этап 1
+# API — этапы 1–2
+
+Этап 2: защищённые `GET /api/workspaces/:view` и `POST /api/actions/:command`, описанные ниже, расширяют API без изменения контрактов этапа 1.
+
+## Рабочие места этапа 2
+
+`GET /api/workspaces/:view`: `bootstrap`, `client`, `leads`, `calls`, `tasks`, `dispatch`, `driver`, `workshop`, `scan`, `payments`, `admin`. Параметры проверяются zod: `branch_id`, `date`, `limit`, `cursor`, `phone`, `client_id`, `order_id`, `driver_id`, `stage`, `status`, `label`. Для `client` используйте phone/client_id; для `scan` — метку K-1041-1; для payments — order_id. Доступ к разделам и строкам проверяется в SQL. Списки возвращают `{data,next_cursor}`, максимальная страница 100; bootstrap/admin возвращают именованные справочники.
+
+`POST /api/actions/:command` требует активного сотрудника, соответствующего права и `Idempotency-Key: UUID`. Тело содержит только данные конкретного действия. Все операции транзакционны и пишут аудит.
+
+| Команда | Данные | Право |
+|---|---|---|
+| lead.save | phone, name?, source?, outcome, reason_code?, comment?, callback_at? | leads |
+| lead.convert | lead_id, order_id | leads |
+| client.address | client_id, label?, address, zone_code?, latitude?, longitude? | clients |
+| call.log | phone, direction, outcome, source?, recording_url?, order_id? | calls |
+| task.save | title, due_at, assigned_to?, order_id?, client_id?, note? | tasks |
+| task.complete | task_id | tasks + исполнитель/диспетчер/admin |
+| visit.schedule | order_id, kind, scheduled_date, slot_code, zone_code?, driver_id?, position?, note? | dispatch |
+| visit.event | visit_id, event, expected_state, failure_reason?, note?, latitude?, longitude? | status + свой водитель/диспетчер/admin |
+| workshop.advance | order_id, expected_stage, note? | workshop |
+| workshop.defect | order_id, item_id?, defect_code, note, photo_id? | workshop |
+| payment.record | order_id, amount, method, note? | payments + область заказа |
+| payment.confirm | payment_id, confirm | admin/dispatcher |
+| tariff.schedule | branch_id?, code, name, price_per_m2, effective_at, active? | tariffs |
+| setting.schedule | branch_id?, key, value, effective_at | tariffs |
+| catalog.save | branch_id?, kind, code, name_ru, name_uz?, active?, position?, config? | catalogs |
+| template.save | branch_id?, code, channel, locale?, body, active? | catalogs |
+| branch.save | code, name, address?, phone?, active?, workshop_capacity_m2?, sla_hours? | branches |
+| staff.update | user_id, full_name, role, active, branch_id?, phone? | staff |
+| photo.register | item_id, path, kind | photos + область заказа |
+
+В действиях обращений/звонков/задач также можно передать branch_id; по умолчанию используется филиал сотрудника. Допустимые поля — источник `src/commands.js`; неизвестные поля отклоняются. Время передаётся с часовым поясом; деньги — целые сумы. `visit.event`: departed/completed/failed, expected_state planned/en_route. `workshop.advance` использует текущий production_stage: received/washing/drying/quality_check/packing. Перенос задания требует note. Окна и справочники берутся из bootstrap; слот config содержит start/end/capacity.
+
+`POST /api/staff/create`: admin, `{email,password,full_name,role,branch_id,active?}`, пароль минимум 12 символов, Idempotency-Key обязателен. Создаёт Auth-пользователя без отправки письма, затем профиль. При сбое настройки возвращается PROFILE_SETUP_REQUIRED с user_id: учётная запись остаётся неактивной для восстановления администратором.
+
+`POST /api/staff/:id/access-link`: admin, `{}` → `{action_link}`. Одноразовая ссылка восстановления доступа выдаётся администратору и не записывается в аудит/логи. Событие генерации пишется в журнал. Сообщение сотруднику автоматически не отправляется.
+
+Фото: `photo-upload` дополнительно принимает `{upload_id?: UUID}` для стабильного пути повторной загрузки. `photos` с Idempotency-Key регистрирует одно фото ровно один раз. PWA сначала сохраняет JPEG в IndexedDB, затем получает подписанную ссылку, загружает PUT image/jpeg и регистрирует путь; сетевой повтор использует прежний ключ.
+
+Создание заказа дополнительно принимает branch_id/zone_code/latitude/longitude/promised_at. Список `/orders` поддерживает branch_id для admin/manager; другим ролям всегда применяется их собственный филиал. Цена/состав снимка созданного заказа не изменяются после ввода новых тарифов.
 
 Все защищённые запросы: `Authorization: Bearer <access_token>`. `id` заказа — UUID или код `K-1041`. Неизвестные поля новых JSON-запросов отклоняются. Суммы целые, 0…999999999999 сум. Причины и комментарии обрезаются по краям и не могут быть пустыми. Переданный клиентом `p_user`, роль или IP не принимаются.
 

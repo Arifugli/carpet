@@ -4,9 +4,10 @@ export class HttpError extends Error {
 }
 export const checked = ({data,error}) => {
   if (error) {
-    const status=({'42501':403,P0002:404,'55000':409,'23514':400,'23503':400,'22003':400})[error.code];
+    const status=({'42501':403,P0002:404,'55000':409,'23514':400,'23503':400,'23505':409,'22003':400})[error.code];
     if (!status) { console.error(JSON.stringify({event:'database_error',code:error.code})); throw new HttpError(500,'Ошибка сервера','DATABASE_ERROR'); }
-    throw new HttpError(status,error.message,error.code);
+    const message=({'23503':'Связанные данные не найдены. Обновите список и повторите действие.','23505':'Такая запись уже существует. Обновите данные.','22003':'Указанная сумма выходит за допустимый диапазон.'})[error.code]||error.message;
+    throw new HttpError(status,message,error.code);
   }
   return data;
 };

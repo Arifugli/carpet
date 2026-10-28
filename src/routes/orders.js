@@ -11,10 +11,11 @@ const orderInput=z.object({
  name:z.string().max(120).default(''),phone:z.string().max(32).transform(v=>v.replace(/[\s()-]/g,''))
   .refine(v=>/^\+998\d{9}$/.test(v),'Телефон должен быть в формате +998XXXXXXXXX'),
  address:z.string().trim().min(3).max(300),pickup_date:z.string().date(),pickup_slot:z.string().max(40).default(''),
- source:z.enum(['call_in','call_out','instagram','telegram']).default('call_in'),comment:z.string().max(500).optional(),
+ source:z.string().regex(/^[a-z0-9_]{1,40}$/).default('call_in'),comment:z.string().max(500).optional(),
+ branch_id:z.string().uuid().optional(),zone_code:z.string().regex(/^[a-z0-9_]{1,40}$/).optional(),latitude:z.number().min(-90).max(90).optional(),longitude:z.number().min(-180).max(180).optional(),promised_at:z.string().datetime({offset:true}).optional(),
  urgent:z.boolean().default(false),stains:z.boolean().default(false),pensioner:z.boolean().default(false),items:z.array(item).min(1).max(30),
 }).strict();
-const LIST='id,number,status,pickup_date,pickup_slot,address,total,urgent,driver_id,created_at,delete_requested_at,delete_requested_by,delete_request_reason,cancel_reason_code,paid_amount,washing_started_at,client:clients(name,phone),items:order_items(id)';
+const LIST='id,number,status,branch_id,production_stage,pickup_date,pickup_slot,address,total,urgent,driver_id,created_at,delete_requested_at,delete_requested_by,delete_request_reason,cancel_reason_code,paid_amount,washing_started_at,client:clients(name,phone),items:order_items(id)';
 const DETAIL='*,client:clients(*),driver:profiles!driver_id(id,full_name),items:order_items(*,photos:order_photos(*)),history:status_history(status,note,created_at,changed_by)';
 const filters=z.object({limit:z.coerce.number().int().min(1).max(100).default(50),cursor:z.string().max(500).optional()});
 const trashFilters=filters.extend({deleted_by:z.string().uuid().optional(),from:z.string().datetime({offset:true}).optional(),to:z.string().datetime({offset:true}).optional(),reason:z.string().trim().max(500).optional()}).strict()
@@ -32,7 +33,7 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
  router.use(allow('read'));
  const resolve=async(req,{trash=false}={})=>{
   const ref=orderRef.parse(req.params.id);
-  let q=byRef(db.from('orders').select('id,status,driver_id,deleted_at'),ref);
+  let q=byRef(db.from('orders').select('id,status,driver_id,deleted_at,branch_id'),ref);
   q=trash?q.not('deleted_at','is',null):q.is('deleted_at',null);
   const o=checked(await q.maybeSingle());
   if (!o) throw new HttpError(404,'Заказ не найден','ORDER_NOT_FOUND');
@@ -43,16 +44,18 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
 
  router.post('/quote',allow('quote'),async(req,res)=>{
   const body=orderInput.partial({phone:true,address:true,pickup_date:true}).parse(req.body);
-  res.json(checked(await db.rpc('quote_order',{p:body})));
+  res.json(checked(await db.rpc('crm_quote',{p:body,p_user:req.user.id,p_ip:req.ip})));
  });
  router.get('/cancel-reasons',async(req,res)=>{
   z.object({}).strict().parse(req.query);
   res.json(checked(await db.from('cancel_reasons').select('code,name_ru,name_uz').eq('active',true).order('position')));
  });
  router.get('/orders',async(req,res)=>{
-  const b=filters.extend({status:z.enum(STATUSES).optional(),q:z.string().trim().max(120).optional(),date:z.string().date().optional(),deletion_requested:z.enum(['true']).optional()}).strict().parse(req.query);
+  const b=filters.extend({status:z.enum(STATUSES).optional(),q:z.string().trim().max(120).optional(),date:z.string().date().optional(),branch_id:z.string().uuid().optional(),deletion_requested:z.enum(['true']).optional()}).strict().parse(req.query);
   if (b.deletion_requested&&!['admin','manager'].includes(req.user.role)) throw new HttpError(403,'Недостаточно прав','FORBIDDEN');
   let q=db.from('orders').select(LIST).is('deleted_at',null).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(b.limit+1);
+  if(!['admin','manager'].includes(req.user.role))q=q.eq('branch_id',req.user.branch_id);
+  else if(b.branch_id)q=q.eq('branch_id',b.branch_id);
   if (b.status) q=q.eq('status',b.status);
   if (b.date) q=q.eq('pickup_date',b.date);
   if (b.deletion_requested) q=q.not('delete_requested_at','is',null);

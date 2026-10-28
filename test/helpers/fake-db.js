@@ -1,8 +1,8 @@
 import {ids} from './database.js';
-export const exampleOrder={id:'20000000-0000-4000-8000-000000000001',number:1041,status:'new',driver_id:null,deleted_at:null,total:180000,paid_amount:0,
+export const exampleOrder={id:'20000000-0000-4000-8000-000000000001',branch_id:'01000000-0000-4000-8000-000000000001',number:1041,status:'new',driver_id:null,deleted_at:null,total:180000,paid_amount:0,
  created_at:'2026-10-28T08:00:00.000Z',client:{name:'Дилноза',phone:'+998901234567'},items:[{id:'30000000-0000-4000-8000-000000000001',seq:1,length_m:3,width_m:2,tariff_code:'wool',price:180000,photos:[]}],history:[]};
 export function fakeDb(role='admin') {
- const db={calls:[],rows:{orders:[structuredClone(exampleOrder)],profiles:Object.entries(ids).map(([r,id])=>({id,role:r,active:r!=='inactive',full_name:r})),cancel_reasons:[],clients:[]},rpcResult:null};
+ const db={calls:[],rows:{orders:[structuredClone(exampleOrder)],profiles:Object.entries(ids).map(([r,id])=>({id,role:r,active:r!=='inactive',full_name:r,branch_id:exampleOrder.branch_id})),cancel_reasons:[],clients:[]},rpcResult:null};
  db.auth={getUser:async token=>token==='invalid'?{data:{user:null},error:{}}:{data:{user:{id:ids[role]}}}};
  db.rpc=async(name,args)=>{db.calls.push({rpc:name,args});return db.rpcResult??{data:{...exampleOrder,status:name==='cancel_order'?'cancelled':'new'},error:null};};
  db.from=table=>{

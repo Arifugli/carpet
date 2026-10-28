@@ -1,0 +1,8 @@
+{
+ "admin":["read","create","quote","assign","status","cancel","delete","restore","trash","audit","photos","tariffs","clients","leads","calls","tasks","dispatch","payments","workshop","staff","catalogs","reports","exports","integrations","inventory","payroll","complaints","discounts","branches"],
+ "manager":["read","quote","cancel","delete","restore","trash","audit","reports","exports","payroll"],
+ "operator":["read","create","quote","assign","status","cancel","requestDeletion","photos","clients","leads","calls","tasks","complaints"],
+ "dispatcher":["read","assign","status","dispatch","tasks","calls","photos","payments"],
+ "driver":["read","status","photos","tasks","payments"],
+ "workshop":["read","status","photos","workshop","inventory"]
+}
