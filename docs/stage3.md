@@ -9,7 +9,7 @@
 API:
 
 - GET /api/reports — справочник.
-- GET /api/reports/:name — from/to YYYY-MM-DD, branch_id/operator_id/driver_id UUID, source, dormant_days (1–3650), limit (1–100), cursor/snapshot_id.
+- GET /api/reports/:name — from/to YYYY-MM-DD, branch_id/operator_id/driver_id UUID, source, dormant_days (1–3660), limit (1–500), cursor/snapshot_id.
 - GET /api/reports/:name/export?snapshot_id=UUID — весь снимок XLSX, независимо от страницы таблицы.
 - POST /api/actions/visit.arrived — visit_id; admin/dispatcher/назначенный водитель, задание en_route, Idempotency-Key.
 
