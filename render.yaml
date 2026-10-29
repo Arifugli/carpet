@@ -1,19 +1,69 @@
+# Production Blueprint: web + worker. Render показывает стоимость перед Apply.
 services:
   - type: web
     name: kover-crm-api
     runtime: node
-    plan: free            # на free-плане сервис «засыпает» после простоя; для боевого режима — starter
-    region: frankfurt     # ближайший к Узбекистану; Supabase тоже лучше создать во Frankfurt
+    plan: 0.5c-512mb
+    region: singapore
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /ready
     autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 30
     envVars:
       - key: NODE_VERSION
-        value: "20"
+        value: "24"
+      - key: NODE_ENV
+        value: production
       - key: SUPABASE_URL
-        sync: false
+        value: https://biajflaqndrngpeffhrx.supabase.co
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: CORS_ORIGINS
+      - key: BOOTSTRAP_ADMIN_EMAIL
         sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: OTP_SECRET
+        generateValue: true
+      - key: NOTIFICATION_ENCRYPTION_KEY
+        generateValue: true
+      - key: REQUEST_LOGGING
+        value: "true"
+      - key: WORKER_SEND_ENABLED
+        value: "false"
+  - type: worker
+    name: kover-crm-outbox
+    runtime: node
+    plan: 0.5c-512mb
+    region: singapore
+    buildCommand: npm ci
+    startCommand: npm run worker
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        fromService:
+          type: web
+          name: kover-crm-api
+          envVarKey: SUPABASE_URL
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        fromService:
+          type: web
+          name: kover-crm-api
+          envVarKey: SUPABASE_SERVICE_ROLE_KEY
+      - key: NOTIFICATION_ENCRYPTION_KEY
+        fromService:
+          type: web
+          name: kover-crm-api
+          envVarKey: NOTIFICATION_ENCRYPTION_KEY
+      - key: PUBLIC_BASE_URL
+        fromService:
+          type: web
+          name: kover-crm-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: WORKER_SEND_ENABLED
+        value: "false"

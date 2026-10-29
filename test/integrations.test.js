@@ -57,7 +57,7 @@ test('HTTP акт/печать: код не раскрывается, encrypted 
 });
 test('исходящие адаптеры: подписи, allowlist/private IP, ошибки без секретов и worker lease',async()=>{
  assert.equal(publicAddress('127.0.0.1'),false);assert.equal(publicAddress('10.2.3.4'),false);assert.equal(publicAddress('::1'),false);assert.equal(publicAddress('8.8.8.8'),true);assert.throws(()=>webhookURL('https://evil.test','example.test'));
- const text='Код 123456',secret='ab'.repeat(32);assert.equal(decrypt(encrypt(text,secret),secret),text);
+ const text='Код 123456',secret='ab'.repeat(32);assert.equal(decrypt(encrypt(text,secret),secret),text);const generated=Buffer.from(secret,'hex').toString('base64');assert.equal(decrypt(encrypt(text,generated),generated),text);
  const requests=[],db={from:()=>({select(){return this;},eq(){return this;},single:async()=>({data:{url:'https://example.test/hooks',secret_env:'WEBHOOK_SECRET_TEST',active:true}})})};
  const sender=createSender({db,config:{smsToken:'secret-sms',smsFrom:'4546',telegramToken:'secret-tg',webhookHosts:'example.test',webhookSecrets:{WEBHOOK_SECRET_TEST:'webhook-test'}},fetcher:async(url,args)=>{requests.push({url,args});return {ok:true,json:async()=>url.includes('telegram')?{ok:true,result:{message_id:123}}:{id:'sms-id'}};},webhook:async(url,body,headers)=>{assert.equal(headers['X-CRM-Signature'],sign('webhook-test',`${headers['X-CRM-Timestamp']}.${body}`));return {id:null};}});
  await sender({id:'1',channel:'sms',destination:input.phone,payload:{text:'Принят'}});await sender({id:'2',channel:'telegram',destination:'123',payload:{text:'Готов'}});await sender({id:'3',channel:'webhook',destination:randomUUID(),payload:{event:'status_ready'}});assert.equal(requests.length,2);

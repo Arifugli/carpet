@@ -3,7 +3,7 @@ import {HttpError} from './http.js';
 export const equal=(a,b)=>{const x=Buffer.from(String(a??'')),y=Buffer.from(String(b??''));return x.length===y.length&&timingSafeEqual(x,y);};
 export const sign=(secret,body)=>createHmac('sha256',secret).update(body).digest('hex');
 export const otpHash=(token,code,secret)=>createHmac('sha256',secret).update(`${token}:${code}`).digest('hex');
-const encryptionKey=secret=>{if(!/^[a-f0-9]{64}$/i.test(secret||''))throw new HttpError(503,'Не настроен ключ шифрования уведомлений','NOTIFICATIONS_DISABLED');return Buffer.from(secret,'hex');};
+const encryptionKey=secret=>{let key;if(/^[a-f0-9]{64}$/i.test(secret||''))key=Buffer.from(secret,'hex');else if(/^[A-Za-z0-9+/]{43}=$/.test(secret||''))key=Buffer.from(secret,'base64');if(key?.length!==32)throw new HttpError(503,'Не настроен ключ шифрования уведомлений','NOTIFICATIONS_DISABLED');return key;};
 export function encrypt(text,secret){const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',encryptionKey(secret),iv),data=Buffer.concat([cipher.update(text,'utf8'),cipher.final()]);return Buffer.concat([iv,cipher.getAuthTag(),data]).toString('base64');}
 export function decrypt(value,secret){const raw=Buffer.from(value,'base64'),cipher=createDecipheriv('aes-256-gcm',encryptionKey(secret),raw.subarray(0,12));cipher.setAuthTag(raw.subarray(12,28));return Buffer.concat([cipher.update(raw.subarray(28)),cipher.final()]).toString('utf8');}
 export function verifySignedRequest(req,secret,{bindKey=false}={}){

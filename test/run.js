@@ -10,3 +10,4 @@ import './reports-ui.test.js';
 import './operations.test.js';
 import './integrations.test.js';
 import './operations-ui.test.js';
+import './production.test.js';

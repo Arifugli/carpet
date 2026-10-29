@@ -5,16 +5,16 @@ import { readdir } from 'node:fs/promises';
 
 export const ids={admin:'10000000-0000-4000-8000-000000000001',manager:'10000000-0000-4000-8000-000000000002',operator:'10000000-0000-4000-8000-000000000003',driver:'10000000-0000-4000-8000-000000000004',workshop:'10000000-0000-4000-8000-000000000005',inactive:'10000000-0000-4000-8000-000000000006',dispatcher:'10000000-0000-4000-8000-000000000007'};
 export const input={name:'Дилноза',phone:'+998901234567',address:'Ташкент, Навои 14',pickup_date:'2026-10-30',items:[{length_m:3,width_m:2,tariff:'wool'}]};
-export async function database({beforeLifecycle,stage=99}={}) {
+export async function database({beforeLifecycle,stage=99,legacyGrants=true}={}) {
  const db=new PGlite({extensions:{pgcrypto}});
  await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
-  create schema auth; create table auth.users(id uuid primary key,raw_user_meta_data jsonb);
+  create schema auth; create table auth.users(id uuid primary key,raw_user_meta_data jsonb,email text,raw_app_meta_data jsonb not null default '{}');
   create function auth.uid() returns uuid language sql as $$select null::uuid$$;
   create schema storage; create table storage.buckets(id text primary key,name text,public boolean);
   grant usage on schema public,auth to service_role;`);
  const initial=await readFile(new URL('../../supabase/migrations/0001_init.sql',import.meta.url),'utf8');
  await db.exec(initial);
- await db.exec(`grant all on all tables in schema public to service_role;
+ if(legacyGrants)await db.exec(`grant all on all tables in schema public to service_role;
   grant usage,select on all sequences in schema public to service_role;
   grant select on all tables in schema public to authenticated;`);
  if(beforeLifecycle) await beforeLifecycle(db);
