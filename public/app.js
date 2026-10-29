@@ -4,7 +4,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const state={token:sessionStorage.getItem('crm_access_token'),user:null,view:'orders',rows:[],cursor:null,filters:{},reasons:[],staff:[],tariffs:[],selected:null,request:0};
 const has=permission=>state.user?.permissions?.includes(permission);
 const button=(key,action,attrs='')=>`<button type="button" data-action="${action}" ${attrs}>${esc(t(key))}</button>`;
-const field=(key,name,type='text',extra='',id=name)=>`<div class="field"><label for="${id}">${esc(t(key))}</label><input id="${id}" name="${name}" type="${type}" ${extra}></div>`;
+const field=(key,name,type='text',extra='',id=name)=>`<div class="field"><label for="${id}">${esc(t(key))}</label><input id="${id}" name="${name}" type="${type}" ${type==='tel'?'inputmode="tel" placeholder="90 123 45 67"':''} ${extra}>${type==='tel'?`<small>${esc(t('phoneHint'))}</small>`:''}</div>`;
 const statusPill=value=>`<span class="pill ${esc(value)}">${esc(t(value))}</span>`;
 const actor=id=>state.staff.find(x=>x.id===id)?.full_name||id||t('noData');
 const toast=message=>{$('#toast').textContent=message;setTimeout(()=>$('#toast').textContent='',5000);};
@@ -16,7 +16,7 @@ async function api(path,{method='GET',body,idempotencyKey}={}) {
  let data;try{data=await response.json();}catch{throw Object.assign(new Error(t('networkError')),{network:true});}
  if (!response.ok) {
   if (response.status===401&&state.user) {logout();throw new Error(t('expired'));}
-  throw Object.assign(new Error(data.error||t('error')),{status:response.status,code:data.code});
+  throw Object.assign(new Error(data.error||t('error')),{status:response.status,code:data.code,fields:data.fields});
  }
  return data;
 }
@@ -190,7 +190,7 @@ document.addEventListener('click',async event=>{
 });
 document.addEventListener('input',event=>{if(event.target.closest('[data-form=create]')&&$('#quote-result'))$('#quote-result').textContent='';});
 let phoneLookupTimer;
-document.addEventListener('input',event=>{const form=event.target.closest('[data-form=create]');if(form&&event.target.name==='phone'){clearTimeout(phoneLookupTimer);const phone=event.target.value.replace(/[\s()-]/g,'');if(/^\+998\d{9}$/.test(phone))phoneLookupTimer=setTimeout(()=>window.crmModules?.lookupInOrderForm(form,phone).catch(()=>{}),400);}});
+document.addEventListener('input',event=>{const form=event.target.closest('[data-form=create]');if(form&&event.target.name==='phone'){clearTimeout(phoneLookupTimer);const phone=event.target.value.replace(/[\s()-]/g,'');if(/^(?:\+?998)?\d{9}$/.test(phone))phoneLookupTimer=setTimeout(()=>window.crmModules?.lookupInOrderForm(form,phone).catch(()=>{}),400);}});
 document.addEventListener('change',event=>{if(event.target.name==='saved_address'){const form=event.target.closest('[data-form=create]');if(form)form.elements.address.value=event.target.value;}});
 
 async function start() {

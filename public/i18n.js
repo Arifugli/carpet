@@ -25,6 +25,7 @@ export let locale='ru';
 export const t=key=>dictionaries[locale]?.[key]??dictionaries.ru[key]??key;
 export const money=value=>`${Number(value||0).toLocaleString('ru-RU')} ${t('currency')}`;
 export const date=value=>value?new Intl.DateTimeFormat('ru-RU',{timeZone:'Asia/Tashkent',dateStyle:'short',timeStyle:'short'}).format(new Date(value)):t('noData');
+Object.assign(dictionaries.ru,{phone:'Телефон',phoneHint:'Введите 9 цифр или полный номер. Код +998 добавится автоматически.'});
 Object.assign(dictionaries.ru,{adminSections:'Разделы управления',editRecord:'Изменить',archiveRecord:'Удалить',restoreRecord:'Восстановить',showArchived:'Показать удалённые',archived:'Удалена',inactive:'Неактивен',tariffs:'Тарифы',adminArchiveSummary:'Удалённые записи хранятся в архиве. История заказов и действий сохраняется.',adminArchiveHint:'Запись будет удалена из рабочих списков и сохранена в архиве. Её можно восстановить. Удалённый сотрудник сразу теряет доступ к CRM.',tariffVersionHint:'Изменение создаёт новую версию тарифа с указанной датой. Стоимость уже созданных заказов сохраняется.',staffRestoredInactive:'Сотрудник восстановлен неактивным. Проверьте роль и филиал, затем включите доступ.',recordRestored:'Запись восстановлена'});
 Object.assign(dictionaries.ru,{
  cancelledWorkUnknown:'Исторические отказы без стоимости работ — денежные суммы по ним неизвестны',

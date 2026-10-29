@@ -10,7 +10,7 @@ import {t,money,date} from './i18n.js';
  const options=kind=>state.meta.catalogs.filter(c=>c.kind===kind&&c.active&&(!state.filters.branch_id||c.branch_id===state.filters.branch_id)).map(c=>[c.code,c.name_ru]);
  let controlId=0;
  const select=(name,label,items,value='',required=false)=>{const id=`desk-${++controlId}`;return `<div class="field"><label for="${id}">${esc(t(label))}</label><select id="${id}" name="${name}" ${required?'required':''}><option value="">${esc(t('noData'))}</option>${items.map(([id,name])=>`<option value="${esc(id)}" ${String(id)===String(value)?'selected':''}>${esc(name)}</option>`).join('')}</select></div>`;};
- const field=(name,label,type='text',value='',extra='')=>{const id=`desk-${++controlId}`;return `<div class="field"><label for="${id}">${esc(t(label))}</label><input id="${id}" name="${name}" type="${type}" value="${esc(value)}" ${extra}></div>`;};
+ const field=(name,label,type='text',value='',extra='')=>{const id=`desk-${++controlId}`;return `<div class="field"><label for="${id}">${esc(t(label))}</label><input id="${id}" name="${name}" type="${type}" value="${esc(value)}" ${type==='tel'?'inputmode="tel" autocomplete="tel" placeholder="90 123 45 67" maxlength="32"':''} ${extra}>${type==='tel'?`<small>${esc(t('phoneHint'))}</small>`:''}</div>`;};
  const choices={outcome:['new','callback','no_result','refused'],direction:['in','out'],kind:['pickup','delivery'],method:['cash','terminal','bank'],role:['admin','manager','operator','dispatcher','driver','workshop'],channel:['sms','telegram'],locale:['ru','uz'],catalogKind:['source','zone','slot','defect','failure','tag','cancel_reason'],setting:['urgent_pct','stains_pct','pensioner_pct','delivery_fee','free_delivery_from']};
  const enumOptions=key=>choices[key].map(v=>Array.isArray(v)?v:[v,t(v)]);
  const forms={
@@ -188,7 +188,7 @@ import {t,money,date} from './i18n.js';
    }else if(name==='staff.create'){await ui().api('/staff/create',{method:'POST',body:data,idempotencyKey:state.form.key});ui().toast(t('staffCreated'));}
    else {const result=await command(forms[name].command||name,data,{queueable:['visit.problem','payment.record','workshop.defect'].includes(name),key:state.form.key});await forms[name].onResult?.(result,data);}
    await prepare();if(state.view)await render(state.view);$('#action').close();
-  }catch(e){form.querySelector('[data-desk-error]').textContent=e.message;}finally{submit.disabled=false;}
+  }catch(e){form.querySelector('[data-desk-error]').textContent=e.message;const invalid=(e.fields||[]).map(path=>[...form.elements].find(el=>el.name===path)).filter(Boolean);for(const el of invalid)el.setAttribute('aria-invalid','true');invalid[0]?.focus();}finally{submit.disabled=false;}
  });
  document.addEventListener('click',async event=>{
   const el=event.target.closest('[data-desk]');if(!el||el.disabled)return;el.disabled=true;
@@ -239,6 +239,7 @@ import {t,money,date} from './i18n.js';
   }catch(e){ui().toast(e.message);}finally{el.disabled=false;}
  });
  document.addEventListener('change',event=>{if(event.target.matches('[data-admin-archived]')){state.showArchived=event.target.checked;renderAdminRows();}});
+ document.addEventListener('input',event=>event.target.removeAttribute?.('aria-invalid'));
  window.addEventListener('online',()=>{if(user())window.CRMOffline?.sync(user().id,ui().api).catch(()=>{});});
  window.addEventListener('crm-queue',()=>{if(user()&&state.view==='queue')renderQueue().catch(()=>{});});
  $('#action').addEventListener('close',stopCamera);

@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {ADMIN_COMMANDS} from './admin-management.js';
+import {phone} from './validation.js';
 const uuid=z.string().uuid(),text=(max=500)=>z.string().trim().min(1).max(max),note=z.string().trim().max(1000).optional();
-const phone=z.string().regex(/^\+998\d{9}$/,'Телефон должен быть в формате +998XXXXXXXXX');
 const branch={branch_id:uuid.optional()},geo={latitude:z.number().min(-90).max(90).optional(),longitude:z.number().min(-180).max(180).optional()};
 const datetime=z.string().datetime({offset:true}),code=z.string().regex(/^[a-z0-9_]{1,40}$/);
 const object=fields=>z.object(fields).strict();

@@ -2,14 +2,14 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { allow,canReadOrder,maskPhone,WORKSHOP_STATUSES } from '../permissions.js';
 import { checked,HttpError,orderRef,byRef,withCode,parseCursor,applyCursor,page } from '../http.js';
+import {phone} from '../validation.js';
 
 const STATUSES=['new','pickup_assigned','received','washing','drying','ready','delivering','delivered','cancelled'];
 const money=z.number().int().min(0).max(999999999999);
 const reason=z.string().trim().min(1,'Укажите причину').max(500);
 const item=z.object({length_m:z.number().min(0.3).max(20),width_m:z.number().min(0.3).max(20),tariff:z.string().min(1).max(20),note:z.string().max(300).optional()}).strict();
 export const orderInput=z.object({
- name:z.string().max(120).default(''),phone:z.string().max(32).transform(v=>v.replace(/[\s()-]/g,''))
-  .refine(v=>/^\+998\d{9}$/.test(v),'Телефон должен быть в формате +998XXXXXXXXX'),
+ name:z.string().max(120).default(''),phone,
  address:z.string().trim().min(3).max(300),pickup_date:z.string().date(),pickup_slot:z.string().max(40).default(''),
  source:z.string().regex(/^[a-z0-9_]{1,40}$/).default('call_in'),comment:z.string().max(500).optional(),
  branch_id:z.string().uuid().optional(),zone_code:z.string().regex(/^[a-z0-9_]{1,40}$/).optional(),latitude:z.number().min(-90).max(90).optional(),longitude:z.number().min(-180).max(180).optional(),promised_at:z.string().datetime({offset:true}).optional(),
