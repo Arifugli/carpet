@@ -2,7 +2,7 @@ import {t,money,date} from './i18n.js';
 (()=>{
  const $=s=>document.querySelector(s),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const ui=()=>window.crmUI,has=p=>ui()?.has(p),user=()=>ui()?.user();
- const state={meta:{branches:[],catalogs:[],staff:[]},view:null,rows:[],cursor:null,filters:{},client:null,orders:[],admin:null,extra:[],form:null,request:0,camera:null};
+ const state={meta:{branches:[],catalogs:[],staff:[]},view:null,rows:[],cursor:null,filters:{},client:null,orders:[],admin:null,adminTab:'staff',showArchived:false,extra:[],form:null,request:0,camera:null};
  const button=(label,action,attrs='')=>`<button type="button" data-desk="${action}" ${attrs}>${esc(t(label))}</button>`;
  const localDate=(value=new Date())=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Tashkent',year:'numeric',month:'2-digit',day:'2-digit'}).format(value);
  const localTime=(value=new Date())=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Tashkent',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(value).replace(' ','T');
@@ -31,6 +31,11 @@ import {t,money,date} from './i18n.js';
   'branch.save':{title:'newBranch',fields:[['code','code','text',true],['name','name_ru','text',true],['address','address'],['phone','phone','tel'],['active','active','checkbox'],['workshop_capacity_m2','workshop_capacity_m2','number',true],['sla_hours','sla_hours','number',true]]},
   photo:{title:'photo',fields:[['item_id','item','items',true],['kind','kind','photoKind',true],['photo','photo','file',true]]},
  };
+ for(const [entity,original,readonly] of [['branch','branch.save',[]],['catalog','catalog.save',['kind','code','branch_id']],['reason','catalog.save',['code']],['template','template.save',['branch_id']]]){
+  const fields=entity==='reason'?forms[original].fields.filter(([key])=>['code','name_ru','name_uz','active'].includes(key)):forms[original].fields;
+  forms[`admin.${entity}.update`]={title:'editRecord',command:'admin.update',fields:[['entity','kind','hidden'],...(entity==='reason'?[]:[['id','entity','hidden']]),...fields],readonly};
+ }
+ for(const action of ['archive','restore'])forms[`admin.${action}`]={title:action==='archive'?'archiveRecord':'restoreRecord',fields:[['entity','kind','hidden'],['id','entity','hidden'],['code','code','hidden'],['branch_id','branch','hidden']],transform:d=>d.entity==='tariff'?{entity:d.entity,code:d.code,branch_id:d.branch_id}:d.entity==='reason'?{entity:d.entity,code:d.code}:{entity:d.entity,id:d.id}};
  const availableViews=u=>[
   ...(u.permissions.includes('clients')?['clients']:[]),...(u.permissions.includes('leads')?['leads']:[]),...(u.permissions.includes('calls')?['calls']:[]),
   ...(u.permissions.includes('tasks')?['tasks']:[]),...(u.permissions.includes('dispatch')?['dispatch']:[]),...(u.role==='driver'?['driverDesk']:[]),
@@ -51,7 +56,7 @@ import {t,money,date} from './i18n.js';
   catch(e){if(queueable&&(e.network||!navigator.onLine)){try{await window.CRMOffline.enqueue(user().id,name,data,{id:key});ui().toast(t('queued'));return {queued:true};}catch{throw new Error(t('saveOfflineUnavailable'));}}throw e;}
  }
  function formOptions(type,prefill){
-  if(type==='branches')return state.meta.branches.filter(b=>b.active).map(b=>[b.id,b.name]);
+  if(type==='branches')return state.meta.branches.filter(b=>b.active||b.id===prefill.branch_id).map(b=>[b.id,b.name]);
   if(type==='staff')return state.meta.staff.filter(s=>s.active).map(s=>[s.id,s.full_name]);
   if(type==='drivers')return state.meta.staff.filter(s=>s.active&&s.role==='driver').map(s=>[s.id,s.full_name]);
   if(type==='orders')return state.orders.map(o=>[o.id,`${o.code} · ${o.client?.name||''} · ${t(o.status)}`]);
@@ -69,7 +74,7 @@ import {t,money,date} from './i18n.js';
   prefill={active:true,source:'call_in',outcome:'new',direction:'in',scheduled_date:state.filters.date||state.meta.date||localDate(),due_at:localTime(),effective_at:localTime(),method:'cash',kind:name==='photo'?'intake':'pickup',role:'operator',channel:'sms',locale:'ru',branch_id:state.filters.branch_id||user().branch_id||state.meta.branches[0]?.id,workshop_capacity_m2:500,sla_hours:72,...prefill};
   if(name==='staff.create')prefill.active=false;if(name==='call.log')prefill.outcome='answered';
   state.form={name,prefill,key:crypto.randomUUID()};
-  $('#action').innerHTML=`<div class="row dialog-head"><h2>${esc(t(definition.title))}</h2>${button('close','close')}</div><form data-desk-form="${name}">${definition.fields.map(([key,label,type='text',required=false])=>{
+  $('#action').innerHTML=`<div class="row dialog-head"><h2>${esc(t(definition.title))}</h2>${button('close','close')}</div>${prefill.adminLabel?`<p><strong>${esc(prefill.adminLabel)}</strong></p>`:''}${name==='admin.archive'?`<p class="notice">${esc(t('adminArchiveHint'))}</p>`:''}${name==='tariff.schedule'&&prefill.adminLabel?`<p class="notice">${esc(t('tariffVersionHint'))}</p>`:''}<form data-desk-form="${name}">${definition.fields.map(([key,label,type='text',required=false])=>{
    const value=prefill[key]??prefill.config?.[key]??'';const opts=formOptions(type,prefill);
    if(type==='hidden')return `<input type="hidden" name="${key}" value="${esc(value)}">`;
    if(opts)return select(key,label,opts,value,required);
@@ -77,6 +82,9 @@ import {t,money,date} from './i18n.js';
    if(type==='checkbox')return `<label class="check"><input name="${key}" type="checkbox" ${value?'checked':''}>${esc(t(label))}</label>`;
    return field(key,label,type,value,`${required?'required':''} ${type==='number'?'step="any"':''} ${type==='file'?'accept="image/jpeg,image/png,image/webp" capture="environment"':''} ${type==='password'?'minlength="12" autocomplete="new-password"':''}`);
   }).join('')}<div class="error" data-desk-error role="alert"></div><button class="primary">${esc(t('save'))}</button></form>`;
+  for(const key of definition.readonly||((name==='tariff.schedule'&&prefill.adminLabel)?['code','branch_id']:[])){
+   const el=$('#action').querySelector(`[name="${key}"]`);if(el){const hidden=document.createElement('input');hidden.type='hidden';hidden.name=key;hidden.value=el.value;el.removeAttribute('name');el.disabled=true;el.after(hidden);}
+  }
   $('#action').showModal();
  }
  function readForm(form){
@@ -87,11 +95,12 @@ import {t,money,date} from './i18n.js';
    const value=d.get(key);if(value==null||value==='')continue;
    data[key]=type==='number'?Number(value):type==='datetime-local'?`${value}${value.length===16?':00':''}+05:00`:value;
   }
-  if(form.dataset.deskForm==='catalog.save'){
+  if(['catalog.save','admin.catalog.update'].includes(form.dataset.deskForm)){
    if(data.kind==='slot'){data.config={capacity:data.capacity||20,start:data.start||'09:00',end:data.end||'13:00'};}
    delete data.capacity;delete data.start;delete data.end;
   }
   if(form.dataset.deskForm==='staff.create')data.branch_id??=null;
+  if(form.dataset.deskForm==='tariff.schedule'&&d.get('effective_at')===state.form.prefill.effective_at)data.effective_at=new Date().toISOString();
   return definition.transform?definition.transform(data):data;
  }
  async function photoBlob(file){
@@ -132,11 +141,13 @@ import {t,money,date} from './i18n.js';
   const data=await read('client',{phone,...(state.filters.branch_id?{branch_id:state.filters.branch_id}:{})});state.client=data;
   $('#desk-list').innerHTML=data.client?`<section class="box"><h2>${esc(data.client.name)}</h2><p>${esc(data.client.phone)}</p><h3>${esc(t('addresses'))}</h3><ul>${data.addresses.map(a=>`<li>${esc(a.label)} ${esc(a.address)}</li>`).join('')}</ul>${button('newAddress','address')}<h3>${esc(t('orders'))}</h3><div class="cards">${data.orders.map(o=>`<article class="card"><strong>${esc(o.code)}</strong><span class="pill">${esc(t(o.status))}</span><p>${money(o.total)}</p><p>${esc(o.address)}</p>${button('repeatOrder','repeat',`data-id="${o.id}"`)}</article>`).join('')}</div></section>`:`<p class="muted">${esc(t('clientNotFound'))}</p>`;
  }
- async function renderAdmin(){
-  state.admin=await read('admin');
-  $('#desk-list').innerHTML=`<section class="box"><h2>${esc(t('staff'))}</h2><div class="table-scroll"><table><thead><tr>${['full_name','role','branch','active','action'].map(k=>`<th>${esc(t(k))}</th>`).join('')}</tr></thead><tbody>${state.admin.staff.map(p=>`<tr><td>${esc(p.full_name)}</td><td>${esc(t(p.role))}</td><td>${esc(state.meta.branches.find(b=>b.id===p.branch_id)?.name||t('noData'))}</td><td>${esc(p.active?t('active'):t('noData'))}</td><td>${button('editStaff','staff-edit',`data-id="${p.id}"`)}${button('accessLink','access-link',`data-id="${p.id}"`)}</td></tr>`).join('')}</tbody></table></div></section>
-  ${[['tariffVersions',state.admin.tariff_versions],['settingVersions',state.admin.setting_versions],['catalogs',state.meta.catalogs],['templates',state.admin.templates],['branches',state.meta.branches]].map(([label,rows])=>`<section class="box"><h2>${esc(t(label))}</h2><ul>${rows.map(v=>`<li>${esc(v.name||v.name_ru||v.key||v.code)}${v.price_per_m2!=null?` · ${money(v.price_per_m2)}`:''}${v.value!=null?` · ${esc(v.value)}`:''}${v.effective_at?` · ${esc(date(v.effective_at))}`:''}${v.body?` · ${esc(v.body)}`:''}</li>`).join('')}</ul></section>`).join('')}`;
+ const adminRows=()=>({staff:state.admin.staff.map(r=>({...r,entity:'staff'})),branches:state.admin.branches.map(r=>({...r,entity:'branch'})),tariffs:state.admin.tariffs.map(r=>({...r,entity:'tariff'})),catalogs:[...state.admin.catalogs.map(r=>({...r,entity:'catalog'})),...state.admin.reasons.map(r=>({...r,entity:'reason'}))],templates:state.admin.templates.map(r=>({...r,entity:'template'}))})[state.adminTab];
+ const adminLabel=r=>r.full_name||r.name||r.name_ru||r.code;
+ function renderAdminRows(){
+  const rows=adminRows().filter(r=>state.showArchived||!r.archived_at),branchName=id=>state.admin.branches.find(b=>b.id===id)?.name||t('noData');
+  $('#desk-list').innerHTML=`<div class="admin-tabs" role="group" aria-label="${esc(t('adminSections'))}">${['staff','branches','tariffs','catalogs','templates'].map(tab=>button(tab,'admin-tab',`data-tab="${tab}" aria-pressed="${state.adminTab===tab}"`)).join('')}</div><label class="check"><input type="checkbox" data-admin-archived ${state.showArchived?'checked':''}>${esc(t('showArchived'))}</label><p class="muted">${esc(t('adminArchiveSummary'))}</p><div class="cards">${rows.map((r,index)=>`<article class="card" data-admin-entity="${r.entity}" data-admin-id="${esc(r.id||r.code)}"><div class="row"><h2>${esc(adminLabel(r))}</h2><span class="pill">${esc(t(r.archived_at?'archived':r.active?'active':'inactive'))}</span></div>${r.role?`<p>${esc(t(r.role))}</p>`:''}${r.code?`<small>${esc(r.code)}${r.kind?` · ${esc(t(r.kind))}`:''}</small>`:''}${r.branch_id?`<small>${esc(branchName(r.branch_id))}</small>`:''}${r.price_per_m2!=null?`<strong>${money(r.price_per_m2)} / м²</strong><small>${esc(t('effective_at'))}: ${esc(date(r.effective_at))}</small>`:''}${r.body?`<p>${esc(r.body)}</p><small>${esc(t(r.channel))} · ${esc(t(r.locale))}</small>`:''}${r.address?`<p>${esc(r.address)}</p>`:''}<div class="actions">${r.archived_at?button('restoreRecord','admin-restore',`data-index="${index}"`):`${button('editRecord','admin-edit',`data-index="${index}"`)}${r.entity==='staff'?button('accessLink','access-link',`data-id="${r.id}"`):''}${button('archiveRecord','admin-archive',`data-index="${index}" class="danger" ${r.entity==='staff'&&r.id===user().id?'disabled':''}`)}`}</div></article>`).join('')||`<div class="box empty">${esc(t('empty'))}</div>`}</div>${state.adminTab==='tariffs'?`<details class="box"><summary>${esc(t('tariffVersions'))}</summary>${state.admin.tariff_versions.map(v=>`<p>${esc(v.name)} · ${esc(branchName(v.branch_id))} · ${money(v.price_per_m2)} · ${esc(date(v.effective_at))}</p>`).join('')}</details>`:''}${state.adminTab==='branches'?`<details class="box"><summary>${esc(t('settingVersions'))}</summary>${state.admin.setting_versions.map(v=>`<p>${esc(t(v.key))} · ${esc(v.value)} · ${esc(date(v.effective_at))}</p>`).join('')}</details>`:''}`;
  }
+ async function renderAdmin(){state.admin=await read('admin');renderAdminRows();}
  async function renderQueue(){
   let rows=[];try{rows=await window.CRMOffline.list(user().id);}catch{}
   $('#desk-list').innerHTML=`<div class="cards">${rows.map(e=>`<article class="card"><strong>${esc(t(e.command==='photo'?'photo':e.command.split('.')[0]))}</strong><small>${esc(date(e.created_at))}</small>${e.error?`<p class="error">${esc(t('queueReview'))} ${esc(e.error)}</p>`:`<p>${esc(t('queued'))}</p>`}<div class="actions">${button('retry','queue-retry',`data-id="${e.id}"`)}${button('discard','queue-discard',`data-id="${e.id}"`)}</div></article>`).join('')||`<p class="muted">${esc(t('empty'))}</p>`}</div>`;
@@ -176,13 +187,23 @@ import {t,money,date} from './i18n.js';
     const blob=await photoBlob(new FormData(form).get('photo'));await window.CRMOffline.enqueue(user().id,'photo',{}, {blob,item_id:data.item_id,kind:data.kind});ui().toast(t('photoQueued'));await window.CRMOffline.sync(user().id,ui().api);
    }else if(name==='staff.create'){await ui().api('/staff/create',{method:'POST',body:data,idempotencyKey:state.form.key});ui().toast(t('staffCreated'));}
    else {const result=await command(forms[name].command||name,data,{queueable:['visit.problem','payment.record','workshop.defect'].includes(name),key:state.form.key});await forms[name].onResult?.(result,data);}
-   $('#action').close();await prepare();if(state.view)await render(state.view);
+   await prepare();if(state.view)await render(state.view);$('#action').close();
   }catch(e){form.querySelector('[data-desk-error]').textContent=e.message;}finally{submit.disabled=false;}
  });
  document.addEventListener('click',async event=>{
   const el=event.target.closest('[data-desk]');if(!el||el.disabled)return;el.disabled=true;
   try{
    const action=el.dataset.desk;
+   if(action==='admin-tab'){state.adminTab=el.dataset.tab;renderAdminRows();}
+   if(['admin-edit','admin-archive','admin-restore'].includes(action)){
+    const row=adminRows().filter(r=>state.showArchived||!r.archived_at)[Number(el.dataset.index)],label=adminLabel(row);
+    const target=row.entity==='tariff'?{entity:row.entity,code:row.code,branch_id:row.branch_id}:row.entity==='reason'?{entity:row.entity,code:row.code}:{entity:row.entity,id:row.id};
+    if(action==='admin-archive')await openForm('admin.archive',{...target,adminLabel:label});
+    else if(action==='admin-restore'){await command('admin.restore',target);ui().toast(t(row.entity==='staff'?'staffRestoredInactive':'recordRestored'));await prepare();await renderAdmin();}
+    else if(row.entity==='staff')await openForm('staff.update',{...row,user_id:row.id});
+    else if(row.entity==='tariff')await openForm('tariff.schedule',{...row,adminLabel:label,effective_at:localTime()});
+    else await openForm(`admin.${row.entity}.update`,{...row,adminLabel:label});
+   }
    if(action==='close'){stopCamera();$('#action').close();}
    if(action==='refresh')await render(state.view);
    if(action==='more')await load(true);
@@ -217,6 +238,7 @@ import {t,money,date} from './i18n.js';
    if(action==='camera')await startCamera();
   }catch(e){ui().toast(e.message);}finally{el.disabled=false;}
  });
+ document.addEventListener('change',event=>{if(event.target.matches('[data-admin-archived]')){state.showArchived=event.target.checked;renderAdminRows();}});
  window.addEventListener('online',()=>{if(user())window.CRMOffline?.sync(user().id,ui().api).catch(()=>{});});
  window.addEventListener('crm-queue',()=>{if(user()&&state.view==='queue')renderQueue().catch(()=>{});});
  $('#action').addEventListener('close',stopCamera);

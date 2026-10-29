@@ -11,3 +11,5 @@ import './operations.test.js';
 import './integrations.test.js';
 import './operations-ui.test.js';
 import './production.test.js';
+import './admin-management.test.js';
+import './admin-management-ui.test.js';

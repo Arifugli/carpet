@@ -1,10 +1,12 @@
 import {z} from 'zod';
+import {ADMIN_COMMANDS} from './admin-management.js';
 const uuid=z.string().uuid(),text=(max=500)=>z.string().trim().min(1).max(max),note=z.string().trim().max(1000).optional();
 const phone=z.string().regex(/^\+998\d{9}$/,'Телефон должен быть в формате +998XXXXXXXXX');
 const branch={branch_id:uuid.optional()},geo={latitude:z.number().min(-90).max(90).optional(),longitude:z.number().min(-180).max(180).optional()};
 const datetime=z.string().datetime({offset:true}),code=z.string().regex(/^[a-z0-9_]{1,40}$/);
 const object=fields=>z.object(fields).strict();
 export const COMMANDS={
+ ...ADMIN_COMMANDS,
  'photo.register':{permission:'photos',schema:object({item_id:uuid,path:text(300),kind:z.enum(['intake','ready'])})},
  'lead.save':{permission:'leads',schema:object({...branch,phone,name:z.string().max(120).optional(),source:code.optional(),outcome:z.enum(['new','callback','no_result','refused']),reason_code:code.optional(),comment:note,callback_at:datetime.optional()})},
  'lead.convert':{permission:'leads',schema:object({lead_id:uuid,order_id:uuid})},

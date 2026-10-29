@@ -1,6 +1,6 @@
-# Запуск 0.5.1 через Render Blueprint
+# Запуск 0.5.2 через Render Blueprint
 
-Основной render.yaml сохраняет один бесплатный web kover-crm-api во Frankfurt на Node 24. Регион совпадает с существующей службой; worker автоматически не создаётся. База — Supabase carpet (biajflaqndrngpeffhrx), Seoul. Для другой базы замените SUPABASE_URL и примените миграции 0001–0009.
+Основной render.yaml сохраняет один бесплатный web kover-crm-api во Frankfurt на Node 24. Регион совпадает с существующей службой; worker автоматически не создаётся. База — Supabase carpet (biajflaqndrngpeffhrx), Seoul. Для другой базы замените SUPABASE_URL и примените миграции 0001–0010.
 
 ## Текущий запуск
 
