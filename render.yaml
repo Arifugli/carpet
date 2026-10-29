@@ -1,10 +1,10 @@
-# Production Blueprint: web + worker. Render показывает стоимость перед Apply.
+# Бесплатный web. Платный worker подключается отдельно через render.worker.example.yaml.
 services:
   - type: web
     name: kover-crm-api
     runtime: node
-    plan: 0.5c-512mb
-    region: singapore
+    plan: free
+    region: frankfurt
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /ready
@@ -29,41 +29,5 @@ services:
         generateValue: true
       - key: REQUEST_LOGGING
         value: "true"
-      - key: WORKER_SEND_ENABLED
-        value: "false"
-  - type: worker
-    name: kover-crm-outbox
-    runtime: node
-    plan: 0.5c-512mb
-    region: singapore
-    buildCommand: npm ci
-    startCommand: npm run worker
-    autoDeployTrigger: checksPass
-    maxShutdownDelaySeconds: 60
-    envVars:
-      - key: NODE_VERSION
-        value: "24"
-      - key: NODE_ENV
-        value: production
-      - key: SUPABASE_URL
-        fromService:
-          type: web
-          name: kover-crm-api
-          envVarKey: SUPABASE_URL
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        fromService:
-          type: web
-          name: kover-crm-api
-          envVarKey: SUPABASE_SERVICE_ROLE_KEY
-      - key: NOTIFICATION_ENCRYPTION_KEY
-        fromService:
-          type: web
-          name: kover-crm-api
-          envVarKey: NOTIFICATION_ENCRYPTION_KEY
-      - key: PUBLIC_BASE_URL
-        fromService:
-          type: web
-          name: kover-crm-api
-          envVarKey: RENDER_EXTERNAL_URL
       - key: WORKER_SEND_ENABLED
         value: "false"
