@@ -27,7 +27,7 @@ export function createWorkspaces(db,config={}){
   if(!can(req.user,definition.permission))throw new HttpError(403,'Недостаточно прав','FORBIDDEN');
   const data=definition.schema.parse(req.body),key=z.string().uuid().parse(req.get('Idempotency-Key'));
   if(name==='webhook.save')webhookURL(data.url,config.webhookHosts);
-  res.json(checked(await db.rpc('crm_command',{p_command:name,p_data:data,p_user:req.user.id,p_ip:req.ip,p_key:key})));
+  res.json(checked(await db.rpc(name.startsWith('admin.')?'crm_admin_command':'crm_command',{p_command:name,p_data:data,p_user:req.user.id,p_ip:req.ip,p_key:key})));
  });
  router.post('/staff/create',allow('staff'),async(req,res)=>{
   const b=z.object({email:z.string().email().max(254),password:z.string().min(12).max(128),full_name:z.string().trim().min(1).max(120),role:z.enum(['admin','manager','operator','dispatcher','driver','workshop']),branch_id:z.string().uuid().nullable(),active:z.boolean().default(false)}).strict().parse(req.body);

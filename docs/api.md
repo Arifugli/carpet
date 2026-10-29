@@ -168,4 +168,12 @@
 
 Новые команды: call.link; discount.rule/apply; payment.refund/intent; cash.close; client.preferences; intake.create; complaint.create/resolve; compensation.paid; rewash.advance; material.save; stock.adjust; piece_rate.save; slot_limit.save; webhook.save; outbox.retry. Точный JSON, лимиты полей и permission — src/operations.js; дополнительно проверяются роль, филиал и состояние в SQL.
 
+## Управление справочниками 0.5.2
+
+POST /api/actions/admin.update, admin.archive, admin.restore доступны только admin и требуют Idempotency-Key UUID. Схемы src/admin-management.js, SQL RPC crm_admin_command. target: entity=branch/staff/catalog/template + id; entity=reason + code; entity=tariff + code,branch_id. Архивирование не удаляет связанные строки, повтор того же ключа возвращает прежний результат.
+
+admin.update принимает entity=branch/catalog/reason/template и поля соответствующей формы. Филиал и шаблон меняются по id. Вид/код/филиал записи справочника и филиал шаблона не переносятся. Сотрудники редактируются прежней staff.update, тарифы — новой версией tariff.schedule. Архив тарифов имеет приоритет над будущими версиями выбранного филиала. Восстановление сотрудника оставляет active=false.
+
+GET /api/workspaces/admin дополнительно возвращает branches,catalogs,reasons,tariffs со статусом архива. bootstrap использует название и доступность действующей версии тарифа. Удалённые записи включены в административный ответ для фильтра «Показать удалённые». Для рабочих форм active=false исключает их из выбора; история заказов сохраняется. /ready проверяет схему 10.
+
 Публичные маршруты и callbacks используют отдельные ограничители. Остальные /api требуют проверенный Bearer и активный профиль. HMAC-контракты, единицы сумм и настройка: [stage4.md](stage4.md). Тела импорта ограничены 3 МБ JSON / 2 МБ исходного файла, обычные поля имеют собственные ограничения Zod. Ошибки валидации — 400, прав — 403, конфликта — 409; провайдерские ошибки возвращаются в формате протокола.
