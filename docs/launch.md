@@ -1,6 +1,14 @@
 # Рабочий запуск 0.5.1 через Render Blueprint
 
-Основной render.yaml создаёт web kover-crm-api и worker kover-crm-outbox в Singapore на Node 24. Оба используют минимальный платный план 0.5c-512mb. Render покажет итоговую стоимость перед Apply. База находится в Supabase carpet (biajflaqndrngpeffhrx), Seoul. Для новой установки на другой базе замените SUPABASE_URL в Blueprint и примените миграции 0001–0009.
+Основной render.yaml создаёт web kover-crm-api и worker kover-crm-outbox во Frankfurt на Node 24. Регион совпадает с уже существующим web: Render не позволяет менять регион службы при синхронизации Blueprint. Оба используют минимальный платный план 0.5c-512mb. Render покажет итоговую стоимость перед Apply. База находится в Supabase carpet (biajflaqndrngpeffhrx), Seoul. Для новой установки на другой базе замените SUPABASE_URL в Blueprint и примените миграции 0001–0009.
+
+## Уже созданная служба
+
+При диагностике 29.10.2026 kover-crm-api работал на free во Frankfurt; worker ещё не был создан. Неправильный SUPABASE_URL приводил к ошибке Invalid supabaseUrl до открытия HTTP-порта. Адрес исправлен на https://biajflaqndrngpeffhrx.supabase.co, NODE_VERSION установлен в 24; после нового деплоя страница, /health и /ready ответили 200. Это изменение двух несекретных переменных соответствует значениям Blueprint, остальные переменные сохранены.
+
+Для первоначального администратора существующей службы добавьте BOOTSTRAP_ADMIN_EMAIL и BOOTSTRAP_ADMIN_PASSWORD вручную через Environment, затем Save, rebuild, and deploy: sync:false не добавляет поля при обновлении. Уже работающий ключ Supabase повторно вводить не требуется. Вход проверяется отдельно после создания профиля.
+
+Переход с free на два платных сервиса — отдельное применение Blueprint с подтверждением стоимости. Исправление региона подготовлено отдельно от main, чтобы его автоматическая синхронизация не создала платный worker до подтверждения. Не считайте один web запуском фонового обработчика.
 
 ## Создание
 
