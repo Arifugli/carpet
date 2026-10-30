@@ -122,6 +122,7 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
   if (!o) throw new HttpError(404,'Заказ не найден','ORDER_NOT_FOUND');
   if (!canReadOrder(req.user,o)) throw new HttpError(403,'Недостаточно прав для этого заказа','FORBIDDEN');
   o.items.forEach(i=>i.photos.forEach(p=>{delete p.url;delete p.storage_path;}));
+  if(o.measurement_mode==='verified'&&['workshop','admin'].includes(req.user.role))o.workshop_intake=checked(await db.rpc('crm_workshop_intake',{oid:o.id,u:req.user.id}));
   o.history.sort((a,b)=>a.created_at.localeCompare(b.created_at));
   res.json(redact(o,req.user));
  });

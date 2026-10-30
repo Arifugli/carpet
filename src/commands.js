@@ -11,6 +11,7 @@ export const COMMANDS={
  'order.measure':{permission:'read',schema:object({order_id:uuid,items:z.array(measurementInput).min(1).max(30)})},
  'pickup.collect':{permission:'status',schema:object({order_id:uuid,expected_state:z.literal('pending')})},
  'pickup.handover':{permission:'status',schema:object({order_id:uuid,expected_state:z.literal('picked_up')})},
+ 'workshop.recover':{permission:'workshop',schema:object({order_id:uuid,expected_state:z.literal('picked_up')})},
  'workshop.accept':{permission:'workshop',schema:object({order_id:uuid,expected_state:z.literal('handed_over')})},
  'item.measure':{permission:'read',schema:measurementInput},
  'photo.register':{permission:'photos',schema:object({item_id:uuid,path:text(300),kind:z.enum(['intake','ready'])})},

@@ -3,8 +3,8 @@ import {fakeDb} from './fake-db.js';
 import {database,create,ids} from './database.js';
 import {listen} from './listen.js';
 
-export async function workflowServer(config={}) {
- const sql=await database(),db=fakeDb(),orderId=await create(sql);
+export async function workflowServer(config={},databaseOptions={}) {
+ const sql=await database(databaseOptions),db=fakeDb(),orderId=await create(sql);
  const sync=async()=>{
   db.rows.orders=(await sql.query(`select to_jsonb(o)||jsonb_build_object(
    'client',(select to_jsonb(c) from clients c where c.id=o.client_id),
