@@ -48,6 +48,7 @@ test('протокол нельзя обойти старым status/visit API; 
   await fails(()=>cmd(db,'pickup.collect',{order_id:id,expected_state:'pending'},'operator'),'42501');
   const v=await cmd(db,'visit.schedule',{order_id:id,kind:'pickup',scheduled_date:'2026-10-30',slot_code:'morning',driver_id:ids.driver},'dispatcher');
   await fails(()=>cmd(db,'visit.event',{visit_id:v.id,event:'completed',expected_state:'planned'}),'55000');
+  await cmd(db,'visit.schedule',{order_id:id,kind:'pickup',scheduled_date:'2026-10-30',slot_code:'morning',driver_id:ids.driver,note:'Перенос по просьбе клиента'},'dispatcher');assert.equal((await view(db,'driver','driver',{date:'2026-10-30'})).data.filter(o=>o.order_id===id).length,1);
   await cmd(db,'pickup.collect',{order_id:id,expected_state:'pending'});await fails(()=>cmd(db,'pickup.handover',{order_id:id,expected_state:'pending'}),'55000');
   await cmd(db,'pickup.handover',{order_id:id,expected_state:'picked_up'});await fails(()=>cmd(db,'workshop.accept',{order_id:id,expected_state:'handed_over'},'driver'),'42501');
  }finally{await db.close();}

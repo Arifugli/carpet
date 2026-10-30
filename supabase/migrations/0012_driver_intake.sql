@@ -190,6 +190,7 @@ begin
    where o.deleted_at is null and o.status<>'cancelled' and (bid is null or v.branch_id=bid)
     and (v.scheduled_date=day or (p_view='driver' and v.kind='pickup' and o.pickup_state in ('picked_up','handed_over')))
     and (p_view<>'driver' or v.driver_id=p_user) and (p_filters->>'driver_id' is null or v.driver_id=(p_filters->>'driver_id')::uuid)
+    and (p_view<>'driver' or v.kind<>'pickup' or o.measurement_mode<>'verified' or (v.state in ('planned','en_route','completed') and not exists(select 1 from public.visits newer where newer.order_id=v.order_id and newer.kind=v.kind and newer.driver_id=v.driver_id and newer.state in ('planned','en_route','completed') and (newer.created_at,newer.id)>(v.created_at,v.id))))
     and (p_filters->>'cursor_at' is null or (v.created_at,v.id)<((p_filters->>'cursor_at')::timestamptz,(p_filters->>'cursor_id')::uuid))
    union all
    select o.id,o.created_at,jsonb_build_object('id',o.id,'order_id',o.id,'branch_id',o.branch_id,'driver_id',o.driver_id,'kind','pickup','state','planned','position',0,'created_at',o.created_at,'scheduled_date',o.pickup_date,'slot_code',o.pickup_slot,'zone_code',o.zone_code,
@@ -197,7 +198,7 @@ begin
     'pickup_state',o.pickup_state,'can_driver_measure',o.driver_measurement_closed_at is null and o.pickup_state in ('pending','picked_up'))||public.crm_pickup_progress(o.id)
    from public.orders o join public.clients c on c.id=o.client_id
    where p_view='driver' and o.driver_id=p_user and o.measurement_mode='verified' and o.deleted_at is null and o.status in ('new','pickup_assigned','received') and o.pickup_state<>'accepted'
-    and not exists(select 1 from public.visits v where v.order_id=o.id and v.kind='pickup' and v.driver_id=p_user and v.state in ('planned','en_route','completed'))
+    and not exists(select 1 from public.visits v where v.order_id=o.id and v.kind='pickup' and v.driver_id=p_user)
     and (p_filters->>'cursor_at' is null or (o.created_at,o.id)<((p_filters->>'cursor_at')::timestamptz,(p_filters->>'cursor_id')::uuid))
    order by created_at desc,id desc limit lim+1)q;
  else
