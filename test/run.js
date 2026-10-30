@@ -16,3 +16,4 @@ import './admin-management-ui.test.js';
 import './phone-input.test.js';
 import './booking.test.js';
 import './driver-intake.test.js';
+import './workshop-intake.test.js';
