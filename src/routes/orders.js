@@ -2,20 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { allow,canReadOrder,maskPhone,WORKSHOP_STATUSES } from '../permissions.js';
 import { checked,HttpError,orderRef,byRef,withCode,parseCursor,applyCursor,page } from '../http.js';
-import {phone} from '../validation.js';
-
+import {bookingInput as orderInput,quoteInput} from '../booking.js';
+export {orderInput};
 const STATUSES=['new','pickup_assigned','received','washing','drying','ready','delivering','delivered','cancelled'];
 const money=z.number().int().min(0).max(999999999999);
 const reason=z.string().trim().min(1,'Укажите причину').max(500);
-const item=z.object({length_m:z.number().min(0.3).max(20),width_m:z.number().min(0.3).max(20),tariff:z.string().min(1).max(20),note:z.string().max(300).optional()}).strict();
-export const orderInput=z.object({
- name:z.string().max(120).default(''),phone,
- address:z.string().trim().min(3).max(300),pickup_date:z.string().date(),pickup_slot:z.string().max(40).default(''),
- source:z.string().regex(/^[a-z0-9_]{1,40}$/).default('call_in'),comment:z.string().max(500).optional(),
- branch_id:z.string().uuid().optional(),zone_code:z.string().regex(/^[a-z0-9_]{1,40}$/).optional(),latitude:z.number().min(-90).max(90).optional(),longitude:z.number().min(-180).max(180).optional(),promised_at:z.string().datetime({offset:true}).optional(),
- urgent:z.boolean().default(false),stains:z.boolean().default(false),pensioner:z.boolean().default(false),items:z.array(item).min(1).max(30),
-}).strict();
-const LIST='id,number,status,branch_id,production_stage,pickup_date,pickup_slot,address,total,urgent,driver_id,created_at,delete_requested_at,delete_requested_by,delete_request_reason,cancel_reason_code,paid_amount,washing_started_at,client:clients(name,phone),items:order_items(id)';
+const LIST='id,number,status,branch_id,pricing_state,measurement_mode,production_stage,pickup_date,pickup_slot,address,total,urgent,driver_id,created_at,delete_requested_at,delete_requested_by,delete_request_reason,cancel_reason_code,paid_amount,washing_started_at,client:clients(name,phone),items:order_items(id)';
 const DETAIL='*,client:clients(*),driver:profiles!driver_id(id,full_name),items:order_items(*,photos:order_photos(*)),history:status_history(status,note,created_at,changed_by)';
 const filters=z.object({limit:z.coerce.number().int().min(1).max(100).default(50),cursor:z.string().max(500).optional()});
 const trashFilters=filters.extend({deleted_by:z.string().uuid().optional(),from:z.string().datetime({offset:true}).optional(),to:z.string().datetime({offset:true}).optional(),reason:z.string().trim().max(500).optional()}).strict()
@@ -43,7 +35,7 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
  const rpc=async(req,name,params)=>withCode(checked(await db.rpc(name,{p_user:req.user.id,p_ip:req.ip,...params})));
 
  router.post('/quote',allow('quote'),async(req,res)=>{
-  const body=orderInput.partial({phone:true,address:true,pickup_date:true}).parse(req.body);
+  const body=quoteInput.parse(req.body);
   res.json(checked(await db.rpc('crm_quote',{p:body,p_user:req.user.id,p_ip:req.ip})));
  });
  router.get('/cancel-reasons',async(req,res)=>{
@@ -76,6 +68,7 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
  });
  router.post('/orders',allow('create'),async(req,res)=>{
   const body=orderInput.parse(req.body);
+  if(req.user.role==='operator'&&body.items.some(i=>i.length_m!=null||i.width_m!=null))throw new HttpError(403,'Замеры выполняют водитель и цех','FORBIDDEN');
   const key=z.string().uuid('Требуется UUID в заголовке Idempotency-Key').parse(req.get('Idempotency-Key'));
   const id=checked(await db.rpc('create_order_audited',{p:body,p_user:req.user.id,p_ip:req.ip,p_key:key}));
   const o=checked(await db.from('orders').select(DETAIL).eq('id',id).is('deleted_at',null).maybeSingle());
@@ -111,6 +104,7 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
   if (b.action) q=q.eq('action',b.action);
   res.json(page(checked(await q).map(x=>({...x,id:String(x.id)})),b.limit,'at'));
  });
+ router.get('/orders/:id/measurements',async(req,res)=>{const o=await resolve(req);res.json(checked(await db.rpc('crm_measurements',{oid:o.id,u:req.user.id})));});
  router.get('/orders/:id',async(req,res)=>{
   const o=checked(await byRef(db.from('orders').select(DETAIL).is('deleted_at',null),orderRef.parse(req.params.id)).maybeSingle());
   if (!o) throw new HttpError(404,'Заказ не найден','ORDER_NOT_FOUND');

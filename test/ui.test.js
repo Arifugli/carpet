@@ -41,7 +41,7 @@ test('DOM + HTTP + SQL: оператор запрашивает удаление
   assert.match(d.querySelector('#detail').textContent,/Сохранённый состав заказа/);click('restore');
   await wait(()=>!d.querySelector('#detail[open]')&&!d.querySelector('.card'));
   d.querySelector('[data-view=orders]').click();await wait(()=>d.querySelector('.card .pill.cancelled'));
-  d.querySelector('[data-view=audit]').click();await wait(()=>d.querySelector('.event'));
+  d.querySelector('[data-view=audit]').click();await wait(()=>d.querySelector('.event'));d.querySelector('[name=entity_id]').value=fixture.orderId;submit('filters');await wait(()=>d.querySelector('.events')?.textContent.includes('Заявка на удаление'));
   for(const text of ['Заявка на удаление','Отказ клиента','Удаление в корзину','Восстановление']) assert.ok(d.querySelector('.events').textContent.includes(text),text);
   const order=(await fixture.sql.query('select status,restored_by from orders where id=$1',[fixture.orderId])).rows[0];
   assert.equal(order.status,'cancelled');assert.equal(order.restored_by,ids.admin);

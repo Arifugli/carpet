@@ -1,0 +1,40 @@
+{
+ "sources":["https://gov.uz/ru/ferghana/departments/regional","https://www.postda.uz/ru/hududlar/"],
+ "regions":[
+  {"code":"karakalpakstan","name_ru":"Республика Каракалпакстан","name_uz":"Qoraqalpog‘iston Respublikasi"},
+  {"code":"andijan","name_ru":"Андижанская область","name_uz":"Andijon viloyati"},
+  {"code":"bukhara","name_ru":"Бухарская область","name_uz":"Buxoro viloyati"},
+  {"code":"jizzakh","name_ru":"Джизакская область","name_uz":"Jizzax viloyati"},
+  {"code":"kashkadarya","name_ru":"Кашкадарьинская область","name_uz":"Qashqadaryo viloyati"},
+  {"code":"navoi","name_ru":"Навоийская область","name_uz":"Navoiy viloyati"},
+  {"code":"namangan","name_ru":"Наманганская область","name_uz":"Namangan viloyati"},
+  {"code":"samarkand","name_ru":"Самаркандская область","name_uz":"Samarqand viloyati"},
+  {"code":"surkhandarya","name_ru":"Сурхандарьинская область","name_uz":"Surxondaryo viloyati"},
+  {"code":"syrdarya","name_ru":"Сырдарьинская область","name_uz":"Sirdaryo viloyati"},
+  {"code":"tashkent_region","name_ru":"Ташкентская область","name_uz":"Toshkent viloyati"},
+  {"code":"fergana","name_ru":"Ферганская область","name_uz":"Farg‘ona viloyati"},
+  {"code":"khorezm","name_ru":"Хорезмская область","name_uz":"Xorazm viloyati"},
+  {"code":"tashkent_city","name_ru":"Город Ташкент","name_uz":"Toshkent shahri"}
+ ],
+ "districts":[
+  {"code":"fergana_city","region_code":"fergana","kind":"city","name_ru":"г. Фергана","name_uz":"Farg‘ona shahri"},
+  {"code":"kokand_city","region_code":"fergana","kind":"city","name_ru":"г. Коканд","name_uz":"Qo‘qon shahri"},
+  {"code":"margilan_city","region_code":"fergana","kind":"city","name_ru":"г. Маргилан","name_uz":"Marg‘ilon shahri"},
+  {"code":"kuvasay_city","region_code":"fergana","kind":"city","name_ru":"г. Кувасай","name_uz":"Quvasoy shahri"},
+  {"code":"altiariq","region_code":"fergana","kind":"district","name_ru":"Алтыарыкский район","name_uz":"Oltiariq tumani"},
+  {"code":"baghdad","region_code":"fergana","kind":"district","name_ru":"Багдадский район","name_uz":"Bag‘dod tumani"},
+  {"code":"beshariq","region_code":"fergana","kind":"district","name_ru":"Бешарыкский район","name_uz":"Beshariq tumani"},
+  {"code":"buvayda","region_code":"fergana","kind":"district","name_ru":"Бувайдинский район","name_uz":"Buvayda tumani"},
+  {"code":"dangara","region_code":"fergana","kind":"district","name_ru":"Дангаринский район","name_uz":"Dang‘ara tumani"},
+  {"code":"yazyavan","region_code":"fergana","kind":"district","name_ru":"Язъяванский район","name_uz":"Yozyovon tumani"},
+  {"code":"quva","region_code":"fergana","kind":"district","name_ru":"Кувинский район","name_uz":"Quva tumani"},
+  {"code":"qushtepa","region_code":"fergana","kind":"district","name_ru":"Куштепинский район","name_uz":"Qo‘shtepa tumani"},
+  {"code":"rishtan","region_code":"fergana","kind":"district","name_ru":"Риштанский район","name_uz":"Rishton tumani"},
+  {"code":"sokh","region_code":"fergana","kind":"district","name_ru":"Сохский район","name_uz":"So‘x tumani"},
+  {"code":"tashlaq","region_code":"fergana","kind":"district","name_ru":"Ташлакский район","name_uz":"Toshloq tumani"},
+  {"code":"uchkuprik","region_code":"fergana","kind":"district","name_ru":"Учкуприкский район","name_uz":"Uchko‘prik tumani"},
+  {"code":"uzbekistan","region_code":"fergana","kind":"district","name_ru":"Узбекистанский район","name_uz":"O‘zbekiston tumani"},
+  {"code":"fergana_district","region_code":"fergana","kind":"district","name_ru":"Ферганский район","name_uz":"Farg‘ona tumani"},
+  {"code":"furqat","region_code":"fergana","kind":"district","name_ru":"Фуркатский район","name_uz":"Furqat tumani"}
+ ]
+}
