@@ -58,8 +58,11 @@ test('обновление 0.6: водитель может завершить �
  const db=await database({through:'0011_booking_measurements.sql'});try{
   const id=await create(db),list=await items(db,id);for(const i of list)await photo(db,id,i.id);
   await call(db,'change_order_status',[id,'received',ids.driver,null]);const before=(await db.query('select total from orders where id=$1',[id])).rows[0].total;
+  const trashed=await call(db,'create_order_audited',[JSON.stringify({...booking,phone:'+998901234571'}),ids.operator,null,randomUUID()]);await call(db,'assign_order_driver',[trashed,ids.operator,ids.driver,null]);await call(db,'change_order_status',[trashed,'pickup_assigned',ids.operator,null]);await call(db,'change_order_status',[trashed,'received',ids.driver,null]);await call(db,'soft_delete_order',[trashed,ids.admin,'Ошибочный заказ',null]);
+  const trashBefore=(await db.query('select delete_snapshot,total from orders where id=$1',[trashed])).rows[0];
   await db.exec('reset role');await db.exec(await readFile(new URL('../supabase/migrations/0012_driver_intake.sql',import.meta.url),'utf8'));await db.exec('set role service_role');
   const o=(await db.query('select * from orders where id=$1',[id])).rows[0];assert.equal(o.pickup_state,'picked_up');assert.equal(o.total,before);assert.equal(o.driver_measurement_closed_at,null);
+  assert.deepEqual((await db.query('select delete_snapshot,total from orders where id=$1',[trashed])).rows[0],trashBefore);await call(db,'restore_order',[trashed,ids.admin,null]);assert.equal((await db.query('select pickup_state from orders where id=$1',[trashed])).rows[0].pickup_state,'picked_up');
   const tasks=await view(db,'driver','driver',{date:'2026-11-03'});assert.ok(tasks.data.some(o=>o.order_id===id&&o.can_driver_measure));
   assert.equal((await call(db,'crm_photo_gallery',[JSON.stringify({order_id:id}),ids.operator])).data.length,2);
   assert.equal((await measure(db,id,list)).total,122000);await cmd(db,'pickup.handover',{order_id:id,expected_state:'picked_up'});

@@ -12,7 +12,7 @@ create index if not exists orders_branch_pickup_state_idx on public.orders(branc
 update public.orders o set pickup_state=case
  when o.status in ('washing','drying','ready','delivering','delivered') or exists(select 1 from public.item_measurements m join public.order_items i on i.id=m.item_id where i.order_id=o.id and m.source_role='workshop') then 'accepted'
  when o.status='received' then 'picked_up' else 'pending' end
-where o.pickup_state='pending';
+where o.pickup_state='pending' and o.deleted_at is null;
 alter table public.order_items drop constraint if exists order_items_measurement_origin_check;
 alter table public.order_items add constraint order_items_measurement_origin_check check(measurement_origin in ('legacy','pending','driver','workshop'));
 create table if not exists public.pickup_events(id uuid primary key default gen_random_uuid(),order_id uuid not null references public.orders(id),
@@ -119,6 +119,9 @@ end $$;
 
 create or replace function public.crm_pickup_guard() returns trigger language plpgsql security invoker set search_path=public,pg_temp as $$
 begin
+ if old.deleted_at is not null and new.deleted_at is null then
+  new.pickup_state:=case when new.status in ('washing','drying','ready','delivering','delivered') or exists(select 1 from public.item_measurements m join public.order_items i on i.id=m.item_id where i.order_id=new.id and m.source_role='workshop') then 'accepted' when new.status='received' then 'picked_up' else 'pending' end;
+ end if;
  if new.measurement_mode='verified' then
   if new.status='received' and old.status<>'received' and (new.pickup_state<>'accepted' or old.pickup_state<>'handed_over') then raise exception using errcode='55000',message='Цех должен подтвердить приём кнопкой «Принял»';end if;
   if new.status in ('washing','drying','ready','delivering','delivered') and new.pickup_state<>'accepted' then raise exception using errcode='55000',message='Сначала подтвердите передачу и приём изделий цехом';end if;
