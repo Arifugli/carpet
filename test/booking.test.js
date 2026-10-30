@@ -31,31 +31,29 @@ test('новая запись: 14 регионов, 19 территорий Фе
  }finally{await db.close();}
 });
 
-test('приёмка: независимые замеры, расхождение с причиной, история, неизменная ставка и защита оплаты/стирки',async()=>{
+test('приёмка: независимые замеры, причина расхождения, история и сохранение цены водителя',async()=>{
  const db=await database();try{
   const id=await create(db,{...booking,items:[{tariff:'carpet',quantity:2},{tariff:'blanket',quantity:2},{tariff:'tushak',quantity:1}]});await assign(db,id);
-  let items=await call(db,'crm_measurements',[id,ids.driver]);assert.equal(items.length,5);const [a,b,c,d,e]=items;
+  let items=await call(db,'crm_measurements',[id,ids.driver]);const [a,b,c,d,e]=items;assert.equal(items.length,5);
   await fails(()=>command(db,'item.measure',{item_id:a.id,length_m:3,width_m:2},'operator'),'42501');
   await fails(()=>command(db,'item.measure',{item_id:a.id,length_m:3.333,width_m:2},'driver'),'23514');
   const key=randomUUID(),data={item_id:a.id,length_m:3,width_m:2,expected_id:null};const sample=await command(db,'item.measure',data,'driver',key);assert.equal((await command(db,'item.measure',data,'driver',key)).id,sample.id);
-  assert.equal((await db.query('select length_m from order_items where id=$1',[a.id])).rows[0].length_m,null);
-  await status(db,id,'received');await fails(()=>command(db,'workshop.advance',{order_id:id,expected_stage:'received'},'workshop'),'55000');
-  await fails(()=>command(db,'payment.record',{order_id:id,amount:1000,method:'cash'}),'23514');
-  await fails(()=>command(db,'intake.create',{order_id:id,note:'Тест'}),'55000');await fails(()=>command(db,'discount.apply',{order_id:id}),'55000');
-  await fails(()=>command(db,'item.measure',{item_id:a.id,length_m:3.5,width_m:2},'workshop'),'23514');
+  assert.equal(Number((await db.query('select length_m from order_items where id=$1',[a.id])).rows[0].length_m),3);
+  await fails(()=>command(db,'payment.record',{order_id:id,amount:1000,method:'cash'}),'23514');await fails(()=>command(db,'intake.create',{order_id:id,note:'Тест'}),'55000');
   await command(db,'tariff.schedule',{branch_id:branch,code:'carpet',name:'Ковры',price_per_m2:15000,unit:'m2',effective_at:new Date().toISOString()});
   await fails(()=>command(db,'tariff.schedule',{branch_id:branch,code:'blanket',name:'Одеяло',price_per_m2:30000,unit:'m2',effective_at:new Date().toISOString()}),'23514');
+  await command(db,'item.measure',{item_id:b.id,length_m:3,width_m:2},'driver');for(const i of [c,d,e])await command(db,'item.measure',{item_id:i.id},'driver');
+  for(const i of items)await call(db,'register_order_photo',[i.id,`${id}/${i.id}/${randomUUID()}.jpg`,'intake',ids.driver,null]);
+  await command(db,'pickup.collect',{order_id:id,expected_state:'pending'},'driver');await command(db,'pickup.handover',{order_id:id,expected_state:'picked_up'},'driver');await command(db,'workshop.accept',{order_id:id,expected_state:'handed_over'},'workshop');
+  await fails(()=>command(db,'item.measure',{item_id:a.id,length_m:3.5,width_m:2},'workshop'),'23514');
   await command(db,'item.measure',{item_id:a.id,length_m:3.5,width_m:2,reason:'Повторный замер рулеткой',expected_id:null},'workshop');
   await fails(()=>command(db,'item.measure',{item_id:a.id,length_m:4,width_m:2,reason:'Исправление',expected_id:null},'workshop'),'55000');
   await fails(()=>command(db,'item.measure',{item_id:b.id,length_m:3,width_m:2},'driver'),'55000');
-  await command(db,'item.measure',{item_id:b.id,length_m:3,width_m:2},'workshop');
-  let o=(await db.query('select * from orders where id=$1',[id])).rows[0];assert.equal(Number(o.total),246000);assert.equal(o.pricing_state,'priced');
-  await fails(()=>command(db,'workshop.advance',{order_id:id,expected_stage:'received'},'workshop'),'55000');
-  await command(db,'payment.record',{order_id:id,amount:1000,method:'cash'});
-  await fails(()=>command(db,'item.measure',{item_id:b.id,length_m:4,width_m:2,reason:'Исправление'},'workshop'),'55000');
-  for(const item of [c,d,e])await command(db,'item.measure',{item_id:item.id},'workshop');
-  await command(db,'workshop.advance',{order_id:id,expected_stage:'received'},'workshop');
-  items=await call(db,'crm_measurements',[id,ids.workshop]);assert.deepEqual(items[0].measurements.map(m=>m.source_role),['workshop','driver']);assert.equal(items[0].measurements[0].measured_by,ids.workshop);assert.equal(items[0].unit_rate,12000);assert.equal(items[0].area_m2,7);
+  let o=(await db.query('select * from orders where id=$1',[id])).rows[0];assert.equal(Number(o.total),234000);assert.equal(o.pricing_state,'priced');
+  await fails(()=>command(db,'workshop.advance',{order_id:id,expected_stage:'received'},'workshop'),'55000');await command(db,'payment.record',{order_id:id,amount:1000,method:'cash'});
+  await command(db,'item.measure',{item_id:b.id,length_m:4,width_m:2,reason:'Контрольный замер'},'workshop');for(const i of [c,d,e])await command(db,'item.measure',{item_id:i.id},'workshop');
+  assert.equal(Number((await db.query('select total from orders where id=$1',[id])).rows[0].total),234000);await command(db,'workshop.advance',{order_id:id,expected_stage:'received'},'workshop');
+  items=await call(db,'crm_measurements',[id,ids.workshop]);assert.deepEqual(items[0].measurements.map(m=>m.source_role),['workshop','driver']);assert.equal(items[0].unit_rate,12000);assert.equal(items[0].area_m2,7);
   await fails(()=>db.query('update item_measurements set length_m=10 where id=$1',[sample.id]),'42501');await fails(()=>db.query('delete from item_measurements where id=$1',[sample.id]),'42501');
   await db.exec('reset role');await fails(()=>db.query('update item_measurements set length_m=10 where id=$1',[sample.id]),'55000');await db.exec('set role service_role');
  }finally{await db.close();}
@@ -93,7 +91,7 @@ test('DOM + HTTP + SQL: зависимые районы, адрес без ко�
   assert.equal(d.querySelector('iframe'),null);let toggle=d.querySelector('[data-driver-map]');toggle.checked=true;change(toggle);assert.ok(d.querySelector('iframe'));assert.equal(new URL(d.querySelector('iframe').src).searchParams.get('rtt'),'auto');assert.match(new URL(d.querySelector('iframe').src).searchParams.get('rtext'),/Тестовая/);assert.doesNotMatch(d.querySelector('iframe').src,/кв\./);assert.ok(d.querySelector('.card').textContent.includes('кв. 5'));
   toggle=d.querySelector('[data-driver-map]');toggle.checked=false;change(toggle);assert.equal(d.querySelector('iframe'),null);assert.equal(w.localStorage.getItem('crm:driver-map:'+ids.driver),'off');
   d.querySelector('[data-action=logout]').click();await login('dispatcher');await wait(()=>d.querySelector('[data-desk-filter]'));d.querySelector('[data-desk-filter] [name=date]').value='2026-10-30';submit('[data-desk-filter]');await wait(()=>d.querySelector('[data-desk=order]'));assert.equal(d.querySelector('[data-driver-map]'),null);assert.equal(d.querySelector('iframe'),null);
-  await status(f.sql,order.id,'received');d.querySelector('[data-action=logout]').click();await login('workshop');await wait(()=>d.querySelector(`[data-desk=order][data-order="${order.id}"]`));d.querySelector(`[data-desk=order][data-order="${order.id}"]`).click();await wait(()=>d.querySelector('#detail[open] [data-desk=measure]'));d.querySelector('#detail[open] [data-desk=measure]').click();
-  measure=d.querySelector('[data-desk-form="item.measure"]');measure.elements.length_m.value='3.5';measure.elements.width_m.value='2';submit('[data-desk-form="item.measure"]');await wait(()=>measure.querySelector('[data-desk-error]').textContent.includes('причину'));measure.elements.reason.value='Проверено рулеткой в цехе';submit('[data-desk-form="item.measure"]');await wait(()=>!d.querySelector('#action[open]'));await wait(()=>d.querySelector('[data-measurements]')?.textContent.includes('Расхождение площади'));assert.match(d.querySelector('[data-measurements]').textContent,/Расхождение площади/);assert.match(d.querySelector('[data-measurements]').textContent,/Проверено рулеткой/);assert.equal(Number((await f.sql.query('select total from orders where id=$1',[order.id])).rows[0].total),104000);
+  const physical=(await call(f.sql,'crm_measurements',[order.id,ids.driver]))[0];await call(f.sql,'register_order_photo',[physical.id,`${order.id}/${physical.id}/${randomUUID()}.jpg`,'intake',ids.driver,null]);await command(f.sql,'pickup.collect',{order_id:order.id,expected_state:'pending'},'driver');await command(f.sql,'pickup.handover',{order_id:order.id,expected_state:'picked_up'},'driver');await command(f.sql,'workshop.accept',{order_id:order.id,expected_state:'handed_over'},'workshop');d.querySelector('[data-action=logout]').click();await login('workshop');await wait(()=>d.querySelector(`[data-desk=order][data-order="${order.id}"]`));d.querySelector(`[data-desk=order][data-order="${order.id}"]`).click();await wait(()=>d.querySelector('#detail[open] [data-desk=measure]'));d.querySelector('#detail[open] [data-desk=measure]').click();
+  measure=d.querySelector('[data-desk-form="item.measure"]');measure.elements.length_m.value='3.5';measure.elements.width_m.value='2';submit('[data-desk-form="item.measure"]');await wait(()=>measure.querySelector('[data-desk-error]').textContent.includes('причину'));measure.elements.reason.value='Проверено рулеткой в цехе';submit('[data-desk-form="item.measure"]');await wait(()=>!d.querySelector('#action[open]'));await wait(()=>d.querySelector('[data-measurements]')?.textContent.includes('Расхождение площади'));assert.match(d.querySelector('[data-measurements]').textContent,/Расхождение площади/);assert.match(d.querySelector('[data-measurements]').textContent,/Проверено рулеткой/);assert.equal(Number((await f.sql.query('select total from orders where id=$1',[order.id])).rows[0].total),92000);
  }finally{await new Promise(r=>setTimeout(r,100));dom?.window.close();await f.close();}
 });

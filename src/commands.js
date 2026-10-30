@@ -8,6 +8,10 @@ const datetime=z.string().datetime({offset:true}),code=z.string().regex(/^[a-z0-
 const object=fields=>z.object(fields).strict();
 export const COMMANDS={
  ...ADMIN_COMMANDS,
+ 'order.measure':{permission:'read',schema:object({order_id:uuid,items:z.array(measurementInput).min(1).max(30)})},
+ 'pickup.collect':{permission:'status',schema:object({order_id:uuid,expected_state:z.literal('pending')})},
+ 'pickup.handover':{permission:'status',schema:object({order_id:uuid,expected_state:z.literal('picked_up')})},
+ 'workshop.accept':{permission:'workshop',schema:object({order_id:uuid,expected_state:z.literal('handed_over')})},
  'item.measure':{permission:'read',schema:measurementInput},
  'photo.register':{permission:'photos',schema:object({item_id:uuid,path:text(300),kind:z.enum(['intake','ready'])})},
  'lead.save':{permission:'leads',schema:object({...branch,phone,name:z.string().max(120).optional(),source:code.optional(),outcome:z.enum(['new','callback','no_result','refused']),reason_code:code.optional(),comment:note,callback_at:datetime.optional()})},

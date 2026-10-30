@@ -15,3 +15,4 @@ import './admin-management.test.js';
 import './admin-management-ui.test.js';
 import './phone-input.test.js';
 import './booking.test.js';
+import './driver-intake.test.js';

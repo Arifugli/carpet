@@ -20,6 +20,6 @@ export function fakeDb(role='admin') {
    },
   };return q;
  };
- db.storage={from:()=>({createSignedUrls:async()=>({data:[],error:null}),createSignedUploadUrl:async()=>({data:{signedUrl:'https://example.test/upload',token:'signed'},error:null})})};
+ db.storage={from:()=>({exists:async()=>({data:true,error:null}),createSignedUrls:async paths=>({data:paths.map(path=>({path,signedUrl:'https://example.test/private/'+path})),error:null}),createSignedUploadUrl:async()=>({data:{signedUrl:'https://example.test/upload',token:'signed'},error:null})})};
  return db;
 }

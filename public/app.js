@@ -26,7 +26,7 @@ function logout() {
  state.token=null;state.user=null;state.rows=[];state.staff=[];state.selected=null;state.request++;
  sessionStorage.removeItem('crm_access_token');
  sessionStorage.removeItem('crm_user_id');window.crmModules?.logout?.();
- $('#detail').close();$('#action').close();loginScreen();
+ $('#detail').close();$('#detail').innerHTML='';$('#action').close();$('#action').innerHTML='';loginScreen();
 }
 function shell() {
  document.title=t('title');
@@ -114,7 +114,7 @@ async function openDetail(id) {
   <h3>${esc(t('snapshot'))}</h3>${items.map(i=>`<div class="items">${esc(t('item'))} ${esc(i.seq)} · ${i.length_m!=null?`${esc(i.length_m)} × ${esc(i.width_m)} ${esc(t('unitM'))}`:esc(t(i.unit==='piece'?'onePiece':'notMeasured'))} · ${esc(i.tariff_code)}<br>${i.measurement_origin==='pending'&&i.unit==='m2'?esc(t('priceAfterMeasurement')):money(i.price)}${i.note?`<p>${esc(i.note)}</p>`:''}</div>`).join('')}
   <h3>${esc(t('history'))}</h3><ul>${o.history.map(h=>`<li>${esc(date(h.created_at))} — ${esc(t(h.status))}${h.note?`<br><small>${esc(h.note)}</small>`:''}</li>`).join('')}</ul>
   ${!trash&&deleteBlocked?`<p class="muted">${esc(t('blockedDeletion'))}</p>`:''}<div class="actions">${trash&&has('restore')?button('restore','restore','class="primary"'):''}${!trash&&cancel?button('cancel','cancel','class="danger"'):''}${!trash&&has('delete')&&!deleteBlocked?button('remove','delete','class="danger"'):''}${!trash&&has('requestDeletion')&&o.status==='new'&&!o.delete_requested_at&&!deleteBlocked?button('requestDeletion','request-deletion'):''}</div>`;
- if(!trash)$('#detail').insertAdjacentHTML('beforeend',window.crmModules?.orderActions?.(o)||'');
+ if(!trash)$('#detail').insertAdjacentHTML('beforeend',(window.crmModules?.photoGallery?.({order_id:o.id})||'')+(window.crmModules?.photoGallery?.({client_id:o.client_id,branch_id:o.branch_id,client:true})||'')+(window.crmModules?.orderActions?.(o)||''));
  $('#detail').showModal();
  if(!trash)await window.crmModules?.afterOrderDetail?.(o);
 }

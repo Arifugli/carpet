@@ -8,9 +8,10 @@ export async function workflowServer(config={}) {
  const sync=async()=>{
   db.rows.orders=(await sql.query(`select to_jsonb(o)||jsonb_build_object(
    'client',(select to_jsonb(c) from clients c where c.id=o.client_id),
-   'items',(select coalesce(jsonb_agg(to_jsonb(i)||jsonb_build_object('photos','[]'::jsonb) order by i.seq),'[]'::jsonb) from order_items i where i.order_id=o.id),
+   'items',(select coalesce(jsonb_agg(to_jsonb(i)||jsonb_build_object('photos',(select coalesce(jsonb_agg(to_jsonb(p)),'[]'::jsonb) from order_photos p where p.item_id=i.id)) order by i.seq),'[]'::jsonb) from order_items i where i.order_id=o.id),
    'history',(select coalesce(jsonb_agg(to_jsonb(h) order by h.id),'[]'::jsonb) from status_history h where h.order_id=o.id)) as data from orders o`)).rows.map(r=>r.data);
-  for(const table of ['profiles','clients','cancel_reasons','tariffs','settings','audit_log','intake_acts','order_items','payments','payment_intents','webhook_subscriptions']) db.rows[table]=(await sql.query(`select * from ${table}`)).rows;
+  db.rows.order_items=(await sql.query(`select to_jsonb(i)||jsonb_build_object('order',(select to_jsonb(o) from orders o where o.id=i.order_id)) data from order_items i`)).rows.map(r=>r.data);
+  for(const table of ['profiles','clients','cancel_reasons','tariffs','settings','audit_log','intake_acts','payments','payment_intents','webhook_subscriptions']) db.rows[table]=(await sql.query(`select * from ${table}`)).rows;
  };
  await sync();
  db.auth.getUser=async token=>({data:{user:{id:ids[token]}}});
