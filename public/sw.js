@@ -1,4 +1,4 @@
-const CACHE='carpet-shell-v7';
+const CACHE='carpet-shell-v8';
 const ASSETS=['/','/index.html','/app.css','/app.js','/i18n.js','/workspaces.js','/offline.js','/reports.js','/operations.js','/manifest.webmanifest','/icon.svg'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)));self.skipWaiting();});
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));

@@ -7,7 +7,7 @@ export {orderInput};
 const STATUSES=['new','pickup_assigned','received','washing','drying','ready','delivering','delivered','cancelled'];
 const money=z.number().int().min(0).max(999999999999);
 const reason=z.string().trim().min(1,'Укажите причину').max(500);
-const LIST='id,number,status,branch_id,pricing_state,measurement_mode,production_stage,pickup_date,pickup_slot,address,total,urgent,driver_id,created_at,delete_requested_at,delete_requested_by,delete_request_reason,cancel_reason_code,paid_amount,washing_started_at,client:clients(name,phone),items:order_items(id)';
+const LIST='id,number,status,branch_id,pricing_state,measurement_mode,pickup_state,production_stage,pickup_date,pickup_slot,address,total,urgent,driver_id,created_at,delete_requested_at,delete_requested_by,delete_request_reason,cancel_reason_code,paid_amount,washing_started_at,client:clients(name,phone),items:order_items(id)';
 const DETAIL='*,client:clients(*),driver:profiles!driver_id(id,full_name),items:order_items(*,photos:order_photos(*)),history:status_history(status,note,created_at,changed_by)';
 const filters=z.object({limit:z.coerce.number().int().min(1).max(100).default(50),cursor:z.string().max(500).optional()});
 const trashFilters=filters.extend({deleted_by:z.string().uuid().optional(),from:z.string().datetime({offset:true}).optional(),to:z.string().datetime({offset:true}).optional(),reason:z.string().trim().max(500).optional()}).strict()
@@ -25,7 +25,7 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
  router.use(allow('read'));
  const resolve=async(req,{trash=false}={})=>{
   const ref=orderRef.parse(req.params.id);
-  let q=byRef(db.from('orders').select('id,status,driver_id,deleted_at,branch_id'),ref);
+  let q=byRef(db.from('orders').select('id,status,driver_id,deleted_at,branch_id,pickup_state'),ref);
   q=trash?q.not('deleted_at','is',null):q.is('deleted_at',null);
   const o=checked(await q.maybeSingle());
   if (!o) throw new HttpError(404,'Заказ не найден','ORDER_NOT_FOUND');
@@ -52,7 +52,7 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
   if (b.date) q=q.eq('pickup_date',b.date);
   if (b.deletion_requested) q=q.not('delete_requested_at','is',null);
   if (req.user.role==='driver') q=q.eq('driver_id',req.user.id);
-  if (req.user.role==='workshop') q=q.in('status',WORKSHOP_STATUSES);
+  if (req.user.role==='workshop') q=q.or(`status.in.(${WORKSHOP_STATUSES.join(',')}),and(status.eq.pickup_assigned,pickup_state.eq.handed_over)`);
   if (b.q) {
    const n=b.q.replace(/^k-/i,'');
    if (/^\d{1,15}$/.test(n)) q=q.eq('number',n);
@@ -104,17 +104,24 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
   if (b.action) q=q.eq('action',b.action);
   res.json(page(checked(await q).map(x=>({...x,id:String(x.id)})),b.limit,'at'));
  });
+ const galleryQuery=z.object({branch_id:z.string().uuid().optional(),limit:z.coerce.number().int().min(1).max(100).default(50),cursor:z.string().max(600).optional()}).strict();
+ const gallery=async(req,res,scope)=>{
+  const f=galleryQuery.parse(req.query),d={...f,...scope};delete d.cursor;
+  if(f.cursor){const cursor=parseCursor(f.cursor);d.cursor_at=cursor.at;d.cursor_id=cursor.id;}
+  const result=checked(await db.rpc('crm_photo_gallery',{d,u:req.user.id}));
+  const paths=result.data.map(p=>p.storage_path),signed=paths.length?checked(await db.storage.from(bucket).createSignedUrls(paths,300)):[];
+  const urls=new Map(signed.filter(p=>p.signedUrl&&!p.error).map(p=>[p.path,p.signedUrl]));
+  result.data=result.data.map(({storage_path,...p})=>({...p,url:urls.get(storage_path)||null}));
+  if(result.next_cursor)result.next_cursor=Buffer.from(JSON.stringify(result.next_cursor)).toString('base64url');res.json(result);
+ };
+ router.get('/orders/:id/photos',async(req,res)=>gallery(req,res,{order_id:z.string().uuid().parse(req.params.id)}));
+ router.get('/clients/:id/photos',async(req,res)=>gallery(req,res,{client_id:z.string().uuid().parse(req.params.id)}));
  router.get('/orders/:id/measurements',async(req,res)=>{const o=await resolve(req);res.json(checked(await db.rpc('crm_measurements',{oid:o.id,u:req.user.id})));});
  router.get('/orders/:id',async(req,res)=>{
   const o=checked(await byRef(db.from('orders').select(DETAIL).is('deleted_at',null),orderRef.parse(req.params.id)).maybeSingle());
   if (!o) throw new HttpError(404,'Заказ не найден','ORDER_NOT_FOUND');
   if (!canReadOrder(req.user,o)) throw new HttpError(403,'Недостаточно прав для этого заказа','FORBIDDEN');
-  const paths=o.items.flatMap(i=>i.photos.map(p=>p.storage_path));
-  if (paths.length) {
-   const urls=checked(await db.storage.from(bucket).createSignedUrls(paths,3600));
-   const map=Object.fromEntries(urls.map(u=>[u.path,u.signedUrl]));
-   o.items.forEach(i=>i.photos.forEach(p=>p.url=map[p.storage_path]||null));
-  }
+  o.items.forEach(i=>i.photos.forEach(p=>{delete p.url;delete p.storage_path;}));
   o.history.sort((a,b)=>a.created_at.localeCompare(b.created_at));
   res.json(redact(o,req.user));
  });

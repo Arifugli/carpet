@@ -8,5 +8,5 @@ export const WORKSHOP_STATUSES = ['received','washing','drying','ready'];
 export const canReadOrder = (user, order) => can(user,'read') && !order.deleted_at
   && (['admin','manager'].includes(user.role)||!user.branch_id||user.branch_id===order.branch_id)
   && (user.role !== 'driver' || order.driver_id === user.id)
-  && (user.role !== 'workshop' || WORKSHOP_STATUSES.includes(order.status));
+  && (user.role !== 'workshop' || (WORKSHOP_STATUSES.includes(order.status)||(order.status==='pickup_assigned'&&order.pickup_state==='handed_over')));
 export const maskPhone = (phone) => phone ? `${String(phone).slice(0,4)} ** *** ** ${String(phone).replace(/\D/g,'').slice(-2)}` : null;

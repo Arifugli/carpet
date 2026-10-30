@@ -59,7 +59,7 @@ export function createStaffApi(db,{bucket='carpet-photos'}={}) {
  });
  const ownedItem=async req=>{
   const id=z.string().uuid().parse(req.params.itemId);
-  const it=checked(await db.from('order_items').select('id,order_id,order:orders(id,driver_id,status,deleted_at,branch_id)').eq('id',id).maybeSingle());
+  const it=checked(await db.from('order_items').select('id,order_id,order:orders(id,driver_id,status,deleted_at,branch_id,pickup_state)').eq('id',id).maybeSingle());
   if (!it||!it.order||it.order.deleted_at) throw new HttpError(404,'Ковёр не найден','ITEM_NOT_FOUND');
   if (!canReadOrder(req.user,it.order)) throw new HttpError(403,'Недостаточно прав для этого заказа','FORBIDDEN');
   return it;
@@ -73,6 +73,8 @@ export function createStaffApi(db,{bucket='carpet-photos'}={}) {
  router.post('/items/:itemId/photos',allow('photos'),async(req,res)=>{
   const b=z.object({path:z.string().min(1).max(300),kind:z.enum(['intake','ready']).default('intake')}).strict().parse(req.body),it=await ownedItem(req);
   if (!new RegExp(`^${it.order_id}/${it.id}/[a-f0-9-]{36}\\.jpg$`).test(b.path)) throw new HttpError(400,'Неверный путь файла');
+  const exists=await db.storage.from(bucket).exists(b.path);
+  if(!exists.data)throw new HttpError(409,'Фото ещё не загружено. Повторите отправку.','PHOTO_NOT_UPLOADED');
   const key=req.get('Idempotency-Key');
   if(key){z.string().uuid().parse(key);return res.status(201).json(checked(await db.rpc('crm_command',{p_command:'photo.register',p_data:{item_id:it.id,path:b.path,kind:b.kind},p_user:req.user.id,p_ip:req.ip,p_key:key})));}
   res.status(201).json(checked(await db.rpc('register_order_photo',{p_item:it.id,p_path:b.path,p_kind:b.kind,p_user:req.user.id,p_ip:req.ip})));

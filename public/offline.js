@@ -26,7 +26,7 @@ window.CRMOffline=(()=>{
   entry.sequence=await put('actions',entry);window.dispatchEvent(new Event('crm-queue'));return entry;
  }
  async function sync(user,api){
-  if(running||!navigator.onLine)return;running=true;
+  if(running||!navigator.onLine)return;running=true;let changed=false;
   try{
    for(const entry of (await list(user)).sort((a,b)=>a.sequence-b.sequence)){
     if(window.crmUI&&window.crmUI.user()?.id!==user)break;
@@ -39,13 +39,13 @@ window.CRMOffline=(()=>{
       if(!response.ok)throw Object.assign(new Error('PHOTO_UPLOAD_FAILED'),{network:response.status>=500});
       await api(`/items/${entry.item_id}/photos`,{method:'POST',body:{path:upload.path,kind:entry.kind},idempotencyKey:entry.id});
      }else await api(`/actions/${entry.command}`,{method:'POST',body:entry.data,idempotencyKey:entry.id});
-     await remove(entry.id);
+     await remove(entry.id);changed=true;
     }catch(error){
      if(error.network||!navigator.onLine)break;
-     entry.state='review';entry.error=error.message;await put('actions',entry);break;
+     entry.state='review';entry.error=error.message;await put('actions',entry);changed=true;break;
     }
    }
-  }finally{running=false;window.dispatchEvent(new Event('crm-queue'));}
+  }finally{running=false;if(changed)window.dispatchEvent(new Event('crm-queue'));}
  }
  async function retry(id,user){const entry=await get(id);if(entry?.user_id===user){entry.state='queued';delete entry.error;await put('actions',entry);}}
  async function discard(id,user){const entry=await get(id);if(entry?.user_id===user)await remove(id);}

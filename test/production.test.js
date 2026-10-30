@@ -7,7 +7,7 @@ import {randomUUID} from 'node:crypto';
 test('новый Supabase без default grants: сервер читает профиль/тарифы и создаёт заказ; клиентские роли закрыты',async()=>{
  const db=await database({legacyGrants:false});try{
   assert.equal((await call(db,'crm_ready',[])).ok,true);
-  assert.equal((await call(db,'crm_ready',[])).schema,11);
+  assert.equal((await call(db,'crm_ready',[])).schema,12);
   assert.equal((await db.query('select role from profiles where id=$1',[ids.admin])).rows[0].role,'admin');
   assert.equal((await db.query('select count(*) from tariffs')).rows[0].count,6);
   assert.equal((await db.query('select count(*) from settings')).rows[0].count,5);

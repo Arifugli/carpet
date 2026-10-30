@@ -16,6 +16,7 @@ import {t,money,date} from './i18n.js';
  choices.unit=[['m2','м²'],['piece','шт.']];
  const price=o=>o.pricing_state==='awaiting_measurements'?esc(t('priceAfterMeasurement')):money(o.total);
  const forms={
+  'order.measure':{title:'measureAndPrice',fields:[]},
   'item.measure':{title:'measureProduct',fields:[['item_id','product','hidden'],['expected_id','entity','hidden'],['length_m','length','number'],['width_m','width','number'],['reason','measurementReason','textarea']]},
   'lead.save':{title:'newLead',fields:[['phone','phone','tel',true],['name','name'],['source','source','source'],['outcome','outcome','outcome',true],['reason_code','cancelReason','reasons'],['comment','comment','textarea'],['callback_at','callback_at','datetime-local']]},
   'call.log':{title:'newCall',fields:[['phone','phone','tel',true],['direction','direction','direction',true],['outcome','outcome','callOutcome',true],['source','source','source'],['recording_url','recording','url']]},
@@ -65,7 +66,7 @@ import {t,money,date} from './i18n.js';
   if(type==='staff')return state.meta.staff.filter(s=>s.active).map(s=>[s.id,s.full_name]);
   if(type==='drivers')return state.meta.staff.filter(s=>s.active&&s.role==='driver').map(s=>[s.id,s.full_name]);
   if(type==='orders')return state.orders.map(o=>[o.id,`${o.code} · ${o.client?.name||''} · ${t(o.status)}`]);
-  if(type==='items')return (prefill.items||[]).map(i=>[i.id,`${t('item')} ${i.seq}`]);
+  if(type==='items')return (prefill.items||[]).map(i=>[i.id,`${t('product')} ${i.seq} · ${state.meta.tariffs?.find(t=>t.code===i.tariff_code)?.name||i.tariff_code||''}`]);
   if(type==='reasons')return (window.crmReasons||[]).map(r=>[r.code,r.name_ru]);
   if(type==='callOutcome')return ['ringing','answered','missed','no_result'].map(v=>[v,t(v)]);
   if(type==='photoKind')return [['intake',t('intake')],['ready',t('readyPhoto')]];
@@ -95,6 +96,7 @@ import {t,money,date} from './i18n.js';
   $('#action').showModal();
  }
  function readForm(form){
+  if(form.dataset.deskForm==='order.measure')return {order_id:form.dataset.order,items:[...form.querySelectorAll('[data-measure-item]')].filter(el=>el.dataset.unit==='m2'||el.querySelector('[name=confirm_piece]').checked).map(el=>({item_id:el.dataset.measureItem,expected_id:el.dataset.expected||null,...(el.dataset.unit==='m2'?{length_m:Number(el.querySelector('[name=length_m]').value),width_m:Number(el.querySelector('[name=width_m]').value)}:{}),...(el.querySelector('[name=reason]').value.trim()?{reason:el.querySelector('[name=reason]').value.trim()}:{})}))};
   const definition=forms[form.dataset.deskForm],d=new FormData(form),data={};
   for(const [key,,type='text'] of definition.fields){
    if(type==='file')continue;
@@ -143,7 +145,7 @@ import {t,money,date} from './i18n.js';
   const target=$('#detail [data-measurements]');if(!target||o.measurement_mode!=='verified')return;
   try{
    const items=await ui().api(`/orders/${o.id}/measurements`);if(state.detailOrder?.id!==o.id||!target.isConnected)return;state.measuredItems=items;
-   const role=user().role,editable=['driver','workshop'].includes(role)&&['pickup_assigned','received'].includes(o.status)&&!o.washing_started_at;
+   const role=user().role,editable=!o.washing_started_at&&(role==='driver'?o.driver_measurement_closed_at==null&&['pending','picked_up'].includes(o.pickup_state):role==='workshop'&&o.status==='received'&&o.pickup_state==='accepted');
    target.innerHTML=`<h3>${esc(t('verifiedMeasurements'))}</h3><p class="muted">${esc(t('measurementHint'))}</p>`+items.map(i=>{
     const driver=i.measurements.find(m=>m.source_role==='driver'),shop=i.measurements.find(m=>m.source_role==='workshop'),own=role==='driver'?driver:shop;
     const show=m=>m?`${m.length_m!=null?`${esc(m.length_m)} × ${esc(m.width_m)} м · ${esc(m.area_m2)} м²`:esc(t('pieceConfirmed'))}<small>${esc(m.measured_name)} · ${esc(date(m.created_at))}</small>${m.reason?`<p>${esc(m.reason)}</p>`:''}`:esc(t('notMeasured'));
@@ -151,6 +153,47 @@ import {t,money,date} from './i18n.js';
    }).join('');
   }catch(e){target.textContent=e.message;}
  }
+
+ function photoGallery({order_id,client_id,branch_id,client=false}){
+  if(!order_id&&!client_id)return '';
+  const url=order_id?`/orders/${order_id}/photos`:`/clients/${client_id}/photos${branch_id?'?branch_id='+encodeURIComponent(branch_id):''}`;
+  return `<details class="photo-gallery" data-photo-gallery data-url="${esc(url)}" data-owner="${esc(user()?.id)}"><summary>${esc(t(client?'viewClientPhotos':'viewPhotos'))}</summary><div data-gallery-content></div><div data-gallery-error class="error" role="alert"></div></details>`;
+ }
+ async function loadGallery(target,append=false){
+  if(!target.open||target.dataset.owner!==user()?.id||target.dataset.loading)return;target.dataset.loading='true';
+  const content=target.querySelector('[data-gallery-content]'),error=target.querySelector('[data-gallery-error]');error.textContent='';
+  try{
+   const path=target.dataset.url+(append?`${target.dataset.url.includes('?')?'&':'?'}cursor=${encodeURIComponent(target.dataset.cursor)}`:'');
+   const result=await ui().api(path);if(!target.isConnected||!target.open||target.dataset.owner!==user()?.id)return;
+   if(!append)content.innerHTML='';content.querySelector('[data-gallery-more]')?.remove();
+   content.insertAdjacentHTML('beforeend',result.data.map(p=>`<figure class="photo-card"><figcaption>${esc(p.code)} · ${esc(t('product'))} ${esc(p.seq)} · ${esc(t(p.kind==='intake'?'intake':'readyPhoto'))}<small>${esc(date(p.created_at))}</small></figcaption>${p.url?`<a href="${esc(p.url)}" target="_blank" rel="noreferrer"><img data-gallery-photo src="${esc(p.url)}" loading="lazy" alt="${esc(t('product')+' '+p.seq)}"></a>`:`<p>${esc(t('photoUnavailable'))}</p>`}</figure>`).join('')||(!append?`<p>${esc(t('noPhotos'))}</p>`:''));
+   target.dataset.cursor=result.next_cursor||'';if(result.next_cursor)content.insertAdjacentHTML('beforeend',`<button type="button" data-gallery-more>${esc(t('more'))}</button>`);
+  }catch(e){if(error.isConnected)error.innerHTML=`${esc(e.message)} <button type="button" data-gallery-retry>${esc(t('retry'))}</button>`;}finally{delete target.dataset.loading;}
+ }
+ document.addEventListener('toggle',event=>{if(event.target.matches?.('[data-photo-gallery]')&&event.target.open)loadGallery(event.target);},true);
+ document.addEventListener('click',event=>{const more=event.target.closest('[data-gallery-more],[data-gallery-retry]');if(more)loadGallery(more.closest('[data-photo-gallery]'),more.hasAttribute('data-gallery-more'));});
+ document.addEventListener('error',event=>{if(event.target.matches?.('[data-gallery-photo]')){const text=document.createElement('p');text.textContent=t('photoUnavailable');event.target.closest('a').replaceWith(text);}},true);
+ async function openMeasurements(orderId){
+  const o=await ui().api(`/orders/${orderId}`),items=await ui().api(`/orders/${orderId}/measurements`),role=user().role;
+  state.form={name:'order.measure',prefill:{order_id:orderId},key:crypto.randomUUID()};
+  $('#action').innerHTML=`<div class="row dialog-head"><h2>${esc(t(role==='driver'?'measureAndPrice':'workshopMeasurements'))} · ${esc(o.code)}</h2>${button('close','close')}</div><form data-desk-form="order.measure" data-order="${o.id}"><p>${esc(t(role==='driver'?'driverMeasurementHint':'shopMeasurementHint'))}</p>${items.map(i=>{
+   const own=i.measurements.find(m=>m.source_role===role);return `<fieldset data-measure-item="${i.id}" data-unit="${i.unit}" data-expected="${own?.id||''}"><legend>${esc(state.meta.tariffs?.find(t=>t.code===i.tariff_code)?.name||i.tariff_code)} · №${i.seq}</legend>${i.unit==='m2'?`<div class="two">${field('length_m','length','number',own?.length_m??'','required min="0.3" max="20" step="0.01"')}${field('width_m','width','number',own?.width_m??'','required min="0.3" max="20" step="0.01"')}</div>`:`<label class="check"><input name="confirm_piece" type="checkbox" required ${own?'checked':''}>${esc(t('confirmOnePiece'))}</label>`}${field('reason','measurementReason','text','','maxlength="500"')}<small>${money(i.unit_rate)} / ${esc(t(i.unit==='piece'?'piece':'m2'))}</small></fieldset>`;
+  }).join('')}<p class="muted">${esc(t('priceFromServer'))}</p><div class="error" data-desk-error role="alert"></div><button class="primary">${esc(t(role==='driver'?'saveAndCalculate':'confirmMeasurements'))}</button></form>`;
+  $('#action').showModal();
+ }
+ function pickupButtons(v){
+  const ready=v.items_count>0&&v.driver_measured_count===v.items_count&&v.photo_items_count===v.items_count&&v.pricing_state==='priced';
+  return `<p class="pickup-state">${esc(t('pickup_'+v.pickup_state))}</p><p class="muted">${esc(t('measurementsSaved'))}: ${v.driver_measured_count}/${v.items_count} · ${esc(t('photosUploaded'))}: ${v.photo_items_count}/${v.items_count}</p><div class="actions">${v.can_driver_measure?button('measureAndPrice','measure-order',`data-order="${v.order_id}" class="primary"`):''}${['pending','picked_up'].includes(v.pickup_state)?button('productPhotos','photo',`data-order="${v.order_id}"`):''}${v.pickup_state==='pending'?button('markPickup','pickup-collect',`data-order="${v.order_id}" class="primary" ${ready?'':'disabled'}`):''}${v.pickup_state==='picked_up'?button('handoverWorkshop','pickup-handover',`data-order="${v.order_id}" class="primary" ${ready?'':'disabled'}`):''}${has('payments')&&v.pricing_state==='priced'?button('collectPayment','payment',`data-order="${v.order_id}"`):''}${button('details','order',`data-order="${v.order_id}"`)}</div>${!ready&&['pending','picked_up'].includes(v.pickup_state)?`<p class="muted">${esc(t('pickupChecklist'))}</p>`:''}`;
+ }
+ function visitButtons(v,view){
+  if(view==='driverDesk'&&v.kind==='pickup'&&v.measurement_mode==='verified')return pickupButtons(v);
+  return `<div class="actions">${v.state==='planned'?button('departed','visit-event',`data-id="${v.id}" data-event="departed"`):''}${v.state==='en_route'&&!v.arrived_at?button('arrived','visit-arrived',`data-id="${v.id}"`):''}${v.state==='en_route'?button(v.kind==='pickup'?'markPickup':'markDelivery','visit-event',`data-id="${v.id}" data-event="completed"`):''}${['planned','en_route'].includes(v.state)?button('failedVisit','visit-problem',`data-id="${v.id}"`):''}${v.pricing_state!=='awaiting_measurements'&&has('payments')?button('collectPayment','payment',`data-order="${v.order_id}"`):''}${has('photos')?button('productPhotos','photo',`data-order="${v.order_id}"`):''}${view==='dispatch'?button('scheduleVisit','reschedule',`data-id="${v.id}"`):''}${button('details','order',`data-order="${v.order_id}"`)}</div>`;
+ }
+ function workshopButtons(o){
+  if(o.measurement_mode==='verified'&&o.pickup_state==='handed_over')return `<div class="actions">${button('acceptProducts','workshop-accept',`data-order="${o.id}" class="primary"`)}${button('details','order',`data-order="${o.id}"`)}</div>`;
+  return `<div class="actions">${o.measurement_mode==='verified'&&o.stage==='received'&&user()?.role==='workshop'?button('workshopMeasurements','measure-order',`data-order="${o.id}" class="primary"`):''}${o.stage!=='ready'?button('nextStage','advance',`data-id="${o.id}" ${o.measurement_mode==='verified'&&o.stage==='received'&&o.workshop_measured_count<o.items_count?'disabled':''}`):''}${button('addDefect','defect',`data-id="${o.id}"`)}${button('productPhotos','photo',`data-order="${o.id}"`)}${button('details','order',`data-order="${o.id}"`)}</div>`;
+ }
+
  function renderRows(){
   const view=state.view,rows=state.rows;
   if(!rows.length){$('#desk-list').innerHTML=`<div class="box empty">${esc(t('empty'))}</div>`;return;}
@@ -158,8 +201,8 @@ import {t,money,date} from './i18n.js';
    const slotStart=v=>state.meta.catalogs.find(c=>c.kind==='slot'&&c.code===v.slot_code&&c.branch_id===v.branch_id)?.config?.start||v.slot_code;
    const sorted=[...rows].sort((a,b)=>String(slotStart(a)).localeCompare(String(slotStart(b)))||String(a.zone_code).localeCompare(String(b.zone_code))||a.position-b.position);
    const load=Object.entries(rows.filter(v=>['planned','en_route'].includes(v.state)).reduce((a,v)=>{a[v.driver_id||'']=(a[v.driver_id||'']||0)+1;return a;},{})).map(([id,n])=>`${esc(staffName(id))}: ${n}`).join(' · ');
-   $('#desk-list').innerHTML=`${view==='dispatch'?`<section class="box"><h2>${esc(t('load'))}</h2><p>${load}</p></section>`:''}<div class="cards">${sorted.map(v=>`<article class="card"><div class="row"><h2>${esc(v.code)}</h2><span class="pill">${esc(t(v.kind))} · ${esc(t(v.state))}</span></div><strong>${esc(v.client_name)}</strong><p>${esc(v.address)}</p>${driverRoute(v)}<small>${esc(options('slot').find(x=>x[0]===v.slot_code)?.[1]||v.slot_code)} · ${esc(v.zone_code||'')}</small><p>${esc(staffName(v.driver_id))}</p><p>${price(v)} · ${esc(t('paid'))}: ${money(v.paid_amount)}</p><div class="actions"><a class="button" href="tel:${esc(String(v.phone).replace(/[^+\d]/g,''))}">${esc(t('callClient'))}</a></div><div class="actions">${v.state==='planned'?button('departed','visit-event',`data-id="${v.id}" data-event="departed"`):''}${v.state==='en_route'&&!v.arrived_at?button('arrived','visit-arrived',`data-id="${v.id}"`):''}${v.state==='en_route'?button(v.kind==='pickup'?'markPickup':'markDelivery','visit-event',`data-id="${v.id}" data-event="completed"`):''}${['planned','en_route'].includes(v.state)?button('failedVisit','visit-problem',`data-id="${v.id}"`):''}${v.pricing_state!=='awaiting_measurements'?button('collectPayment','payment',`data-order="${v.order_id}"`):''}${button('photo','photo',`data-order="${v.order_id}"`)}${view==='dispatch'?button('scheduleVisit','reschedule',`data-id="${v.id}"`):''}${button('details','order',`data-order="${v.order_id}"`)}</div></article>`).join('')}</div>`;
-  }else if(view==='workshopDesk')$('#desk-list').innerHTML=`<div class="cards">${rows.map(o=>`<article class="card"><div class="row"><h2>${esc(o.code)}</h2><span class="pill">${esc(t(o.stage))}</span></div>${o.urgent?`<strong class="danger">${esc(t('urgent'))}</strong>`:''}<p>${esc(t('area'))}: ${esc(o.area_m2)}</p><small>${esc(t('stageStarted'))}: ${esc(date(o.stage_at))}</small><small>${esc(t('deadline'))}: ${esc(date(o.promised_at))}</small><div class="actions">${o.stage!=='ready'?button('nextStage','advance',`data-id="${o.id}" class="primary"`):''}${button('addDefect','defect',`data-id="${o.id}"`)}${button('photo','photo',`data-order="${o.id}"`)}${button('details','order',`data-order="${o.id}"`)}</div></article>`).join('')}</div>`;
+   $('#desk-list').innerHTML=`${view==='dispatch'?`<section class="box"><h2>${esc(t('load'))}</h2><p>${load}</p></section>`:''}<div class="cards">${sorted.map(v=>`<article class="card"><div class="row"><h2>${esc(v.code)}</h2><span class="pill">${esc(t(v.kind))} · ${esc(t(v.state))}</span></div><strong>${esc(v.client_name)}</strong><p>${esc(v.address)}</p>${driverRoute(v)}<small>${esc(options('slot').find(x=>x[0]===v.slot_code)?.[1]||v.slot_code)} · ${esc(v.zone_code||'')}</small><p>${esc(staffName(v.driver_id))}</p><p>${price(v)} · ${esc(t('paid'))}: ${money(v.paid_amount)}</p><div class="actions"><a class="button" href="tel:${esc(String(v.phone).replace(/[^+\d]/g,''))}">${esc(t('callClient'))}</a></div>${visitButtons(v,view)}</article>`).join('')}</div>`;
+  }else if(view==='workshopDesk')$('#desk-list').innerHTML=`<div class="cards">${rows.map(o=>`<article class="card"><div class="row"><h2>${esc(o.code)}</h2><span class="pill">${esc(t(o.stage))}</span></div>${o.urgent?`<strong class="danger">${esc(t('urgent'))}</strong>`:''}<p>${esc(t('area'))}: ${esc(o.area_m2)}</p><small>${esc(t('stageStarted'))}: ${esc(date(o.stage_at))}</small><small>${esc(t('deadline'))}: ${esc(date(o.promised_at))}</small>${workshopButtons(o)}</article>`).join('')}</div>`;
   else $('#desk-list').innerHTML=`<div class="cards">${rows.map(row=>`<article class="card"><strong>${esc(row.title||row.name||row.phone)}</strong><p>${esc(row.phone||row.note||row.comment||'')}</p><span class="pill">${esc(t(row.outcome||row.status))}</span><small>${esc(date(row.due_at||row.callback_at||row.started_at||row.created_at))}</small>${row.recording_url?`<a href="${esc(row.recording_url)}" target="_blank" rel="noreferrer">${esc(t('recording'))}</a>`:''}${view==='tasks'&&row.status==='open'?button('complete','task-complete',`data-id="${row.id}"`):''}${view==='calls'?button('clientSearch','phone-client',`data-phone="${esc(row.phone)}"`)+(window.crmModules?.callActions?.(row)||''):''}</article>`).join('')}</div>`;
   $('#desk-pagination').innerHTML=state.cursor?button('more','more'):'';
  }
@@ -172,7 +215,7 @@ import {t,money,date} from './i18n.js';
  }
  async function renderClient(phone){
   const data=await read('client',{phone,...(state.filters.branch_id?{branch_id:state.filters.branch_id}:{})});state.client=data;
-  $('#desk-list').innerHTML=data.client?`<section class="box"><h2>${esc(data.client.name)}</h2><p>${esc(data.client.phone)}</p><h3>${esc(t('addresses'))}</h3><ul>${data.addresses.map(a=>`<li>${esc(a.label)} ${esc(a.address)}</li>`).join('')}</ul>${button('newAddress','address')}<h3>${esc(t('orders'))}</h3><div class="cards">${data.orders.map(o=>`<article class="card"><strong>${esc(o.code)}</strong><span class="pill">${esc(t(o.status))}</span><p>${price(o)}</p><p>${esc(o.address)}</p>${button('repeatOrder','repeat',`data-id="${o.id}"`)}</article>`).join('')}</div></section>`:`<p class="muted">${esc(t('clientNotFound'))}</p>`;
+  $('#desk-list').innerHTML=data.client?`<section class="box"><h2>${esc(data.client.name)}</h2><p>${esc(data.client.phone)}</p><h3>${esc(t('addresses'))}</h3><ul>${data.addresses.map(a=>`<li>${esc(a.label)} ${esc(a.address)}</li>`).join('')}</ul>${button('newAddress','address')}${photoGallery({client_id:data.client.id,branch_id:state.filters.branch_id,client:true})}<h3>${esc(t('orders'))}</h3><div class="cards">${data.orders.map(o=>`<article class="card"><strong>${esc(o.code)}</strong><span class="pill">${esc(t(o.status))}</span><p>${price(o)}</p><p>${esc(o.address)}</p>${button('details','order',`data-order="${o.id}"`)}${button('repeatOrder','repeat',`data-id="${o.id}"`)}</article>`).join('')}</div></section>`:`<p class="muted">${esc(t('clientNotFound'))}</p>`;
  }
  const adminRows=()=>({staff:state.admin.staff.map(r=>({...r,entity:'staff'})),branches:state.admin.branches.map(r=>({...r,entity:'branch'})),tariffs:state.admin.tariffs.map(r=>({...r,entity:'tariff'})),catalogs:[...state.admin.catalogs.map(r=>({...r,entity:'catalog'})),...state.admin.reasons.map(r=>({...r,entity:'reason'}))],templates:state.admin.templates.map(r=>({...r,entity:'template'}))})[state.adminTab];
  const adminLabel=r=>r.full_name||r.name||r.name_ru||r.code;
@@ -217,10 +260,10 @@ import {t,money,date} from './i18n.js';
   try{
    const name=form.dataset.deskForm,data=readForm(form);
    if(name==='photo'){
-    const blob=await photoBlob(new FormData(form).get('photo'));await window.CRMOffline.enqueue(user().id,'photo',{}, {blob,item_id:data.item_id,kind:data.kind});ui().toast(t('photoQueued'));await window.CRMOffline.sync(user().id,ui().api);
+    const blob=await photoBlob(new FormData(form).get('photo')),entry=await window.CRMOffline.enqueue(user().id,'photo',{}, {blob,item_id:data.item_id,kind:data.kind,id:state.form.key});await window.CRMOffline.sync(user().id,ui().api);const pending=(await window.CRMOffline.list(user().id)).find(e=>e.id===entry.id);if(pending?.state==='review')throw Error(t('photoNeedsRetry')+' '+(pending.error||''));ui().toast(t(pending?'photoQueued':'photoSaved'));
    }else if(name==='staff.create'){await ui().api('/staff/create',{method:'POST',body:data,idempotencyKey:state.form.key});ui().toast(t('staffCreated'));}
-   else {const result=await command(forms[name].command||name,data,{queueable:['visit.problem','payment.record','workshop.defect'].includes(name),key:state.form.key});await forms[name].onResult?.(result,data);}
-   await prepare();if(name==='item.measure'){await ui().openOrder(state.detailOrder.id);}else if(state.view)await render(state.view);$('#action').close();
+   else {const result=await command(forms[name].command||name,data,{queueable:['visit.problem','payment.record','workshop.defect'].includes(name),key:state.form.key});await forms[name].onResult?.(result,data);if(name==='order.measure')ui().toast(user().role==='driver'?t('calculatedPrice')+': '+money(result.total):t('measurementsConfirmed'));}
+   const photoOrder=name==='photo'?state.form.prefill.order_id:null;await prepare();if(state.view)await render(state.view);if(name==='item.measure')await ui().openOrder(state.detailOrder.id);if(photoOrder)await ui().openOrder(photoOrder);$('#action').close();
   }catch(e){form.querySelector('[data-desk-error]').textContent=e.message;const invalid=(e.fields||[]).map(path=>[...form.elements].find(el=>el.name===path)).filter(Boolean);for(const el of invalid)el.setAttribute('aria-invalid','true');invalid[0]?.focus();}finally{submit.disabled=false;}
  });
  document.addEventListener('click',async event=>{
@@ -237,6 +280,8 @@ import {t,money,date} from './i18n.js';
     else if(row.entity==='tariff')await openForm('tariff.schedule',{...row,adminLabel:label,effective_at:localTime()});
     else await openForm(`admin.${row.entity}.update`,{...row,adminLabel:label});
    }
+   if(action==='measure-order')await openMeasurements(el.dataset.order);
+   if(['pickup-collect','pickup-handover','workshop-accept'].includes(action)){const commandName={'pickup-collect':'pickup.collect','pickup-handover':'pickup.handover','workshop-accept':'workshop.accept'}[action],expected={'pickup-collect':'pending','pickup-handover':'picked_up','workshop-accept':'handed_over'}[action];await command(commandName,{order_id:el.dataset.order,expected_state:expected},{key:el.dataset.key||(el.dataset.key=crypto.randomUUID())});await load();ui().toast(t('saved'));}
    if(action==='measure'){const i=state.measuredItems.find(i=>i.id===el.dataset.id),own=i.measurements.find(m=>m.source_role===user().role);await openForm('item.measure',{item_id:i.id,unit:i.unit,expected_id:own?.id||'',length_m:own?.length_m||'',width_m:own?.width_m||''});}
    if(action==='route-location'&&user().role==='driver'){const request=++mapRequest;navigator.geolocation?.getCurrentPosition(pos=>{if(request!==mapRequest||user()?.role!=='driver'||!mapEnabled())return;mapOrigin=`${pos.coords.latitude},${pos.coords.longitude}`;renderRows();},()=>ui().toast(t('routeLocationDenied')),{enableHighAccuracy:true,timeout:12000,maximumAge:60000});}
    if(action==='close'){stopCamera();$('#action').close();}
@@ -265,7 +310,7 @@ import {t,money,date} from './i18n.js';
    if(action==='advance'){const o=state.rows.find(o=>o.id===el.dataset.id);await command('workshop.advance',{order_id:o.id,expected_stage:o.stage},{queueable:true});await load();}
    if(action==='defect'){const o=state.rows.find(o=>o.id===el.dataset.id);await openForm('workshop.defect',{order_id:o.id,items:o.items});}
    if(action==='payment')await openForm('payment.record',{order_id:el.dataset.order});
-   if(action==='photo'){const o=await ui().api(`/orders/${el.dataset.order}`);await openForm('photo',{items:o.items});}
+   if(action==='photo'){const o=await ui().api(`/orders/${el.dataset.order}`),next=o.items.find(i=>!i.photos?.some(p=>p.kind==='intake'))||o.items[0];await openForm('photo',{items:o.items,order_id:o.id,item_id:next?.id});}
    if(action==='staff-edit'){const person=state.admin.staff.find(p=>p.id===el.dataset.id);await openForm('staff.update',{...person,user_id:person.id});}
    if(action==='access-link'){const r=await ui().api(`/staff/${el.dataset.id}/access-link`,{method:'POST',body:{}});$('#action').innerHTML=`<h2>${esc(t('accessLink'))}</h2><p>${esc(t('accessLinkHint'))}</p><textarea readonly>${esc(r.action_link)}</textarea>${button('close','close')}`;$('#action').showModal();}
    if(action==='queue-retry'){await window.CRMOffline.retry(el.dataset.id,user().id);await window.CRMOffline.sync(user().id,ui().api);await renderQueue();}
@@ -277,13 +322,13 @@ import {t,money,date} from './i18n.js';
  document.addEventListener('change',event=>{if(event.target.matches('[data-admin-archived]')){state.showArchived=event.target.checked;renderAdminRows();}});
  document.addEventListener('input',event=>event.target.removeAttribute?.('aria-invalid'));
  window.addEventListener('online',()=>{if(user())window.CRMOffline?.sync(user().id,ui().api).catch(()=>{});});
- window.addEventListener('crm-queue',()=>{if(user()&&state.view==='queue')renderQueue().catch(()=>{});});
+ window.addEventListener('crm-queue',()=>{if(!user())return;if(state.view==='queue')renderQueue().catch(()=>{});else if(['driverDesk','workshopDesk'].includes(state.view))load().catch(()=>{});});
  $('#action').addEventListener('close',stopCamera);
  window.crmModules={views:availableViews,home:u=>u.role==='driver'?'driverDesk':u.role==='workshop'?'workshopDesk':u.role==='dispatcher'?'dispatch':u.role==='manager'&&state.extra.some(f=>f.key==='reports')?'reports':'orders',prepare,render,
   lookupInOrderForm:async(form,phone)=>{const data=await read('client',{phone});if(!data.client||!form.isConnected||form.elements.phone.value.replace(/\D/g,'').slice(-9)!==phone.replace(/\D/g,'').slice(-9))return;if(!form.elements.name.value)form.elements.name.value=data.client.name||'';state.savedAddresses=data.addresses;let target=form.querySelector('[data-client-addresses]');if(!target){target=document.createElement('div');target.dataset.clientAddresses='';form.querySelector('[data-address-fields]')?.before(target);}target.innerHTML=data.addresses.length?select('saved_structured_address','addresses',data.addresses.map(a=>[a.id,`${a.label} ${a.address}`])):'';},
   logout:()=>{state.view=null;state.request++;mapOrigin='';mapRequest++;state.measuredItems=[];state.detailOrder=null;state.savedAddresses=[];stopCamera();},addFeature:feature=>state.extra.push(feature),
   orderFields:()=>`${select('branch_id','branch',state.meta.branches.filter(b=>b.active).map(b=>[b.id,b.name]),user()?.branch_id||state.meta.branches[0]?.id,true)}${addressFields()}`,fillAddress,afterOrderDetail:measurementPanel,
-  sourceOptions:()=>options('source'),getMeta:()=>state.meta,openForm,command,forms,choices,
-  orderActions:o=>{state.detailOrder=o;const stage=o.production_stage||o.status;return `${o.measurement_mode==='verified'?'<section data-measurements aria-live="polite"></section>':''}<div class="actions desk-order-actions">${has('workshop')&&!['ready','cancelled','delivered'].includes(stage)?button('nextStage','advance-detail',`data-order="${o.id}" data-stage="${esc(stage)}"`):''}${has('workshop')?button('addDefect','defect-detail'):''}${has('photos')?button('photo','photo',`data-order="${o.id}"`):''}${has('payments')&&o.pricing_state!=='awaiting_measurements'?button('collectPayment','payment',`data-order="${o.id}"`):''}${user().role!=='workshop'?button('paymentHistory','payments',`data-order="${o.id}"`):''}</div>`;},
+  photoGallery,sourceOptions:()=>options('source'),getMeta:()=>state.meta,openForm,command,forms,choices,
+  orderActions:o=>{state.detailOrder=o;const stage=o.production_stage||o.status;return `${o.measurement_mode==='verified'?'<section data-measurements aria-live="polite"></section>':''}<div class="actions desk-order-actions">${has('workshop')&&o.pickup_state!=='handed_over'&&!['ready','cancelled','delivered'].includes(stage)?button('nextStage','advance-detail',`data-order="${o.id}" data-stage="${esc(stage)}"`):''}${has('workshop')?button('addDefect','defect-detail'):''}${has('photos')?button('photo','photo',`data-order="${o.id}"`):''}${has('payments')&&o.pricing_state!=='awaiting_measurements'?button('collectPayment','payment',`data-order="${o.id}"`):''}${user().role!=='workshop'?button('paymentHistory','payments',`data-order="${o.id}"`):''}</div>`;},
  };
 })();
