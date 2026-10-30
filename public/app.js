@@ -5,6 +5,7 @@ const state={token:sessionStorage.getItem('crm_access_token'),user:null,view:'or
 const has=permission=>state.user?.permissions?.includes(permission);
 const button=(key,action,attrs='')=>`<button type="button" data-action="${action}" ${attrs}>${esc(t(key))}</button>`;
 const field=(key,name,type='text',extra='',id=name)=>`<div class="field"><label for="${id}">${esc(t(key))}</label><input id="${id}" name="${name}" type="${type}" ${type==='tel'?'inputmode="tel" placeholder="90 123 45 67"':''} ${extra}>${type==='tel'?`<small>${esc(t('phoneHint'))}</small>`:''}</div>`;
+const orderPrice=o=>o.pricing_state==='awaiting_measurements'?esc(t('priceAfterMeasurement')):money(o.total);
 const statusPill=value=>`<span class="pill ${esc(value)}">${esc(t(value))}</span>`;
 const actor=id=>state.staff.find(x=>x.id===id)?.full_name||id||t('noData');
 const toast=message=>{$('#toast').textContent=message;setTimeout(()=>$('#toast').textContent='',5000);};
@@ -93,7 +94,7 @@ function renderList() {
  else if(state.view==='audit') $('#list').innerHTML=`<div class="events">${state.rows.map(a=>`<article class="event"><div class="row"><strong>${esc(t(a.action))}</strong><small>${esc(date(a.at))}</small></div><p>${esc(actor(a.user_id))} · ${esc(t(a.role))} · ${esc(t(a.entity))} ${esc(a.entity_id)}</p><small>${esc(t('ip'))}: ${esc(a.ip||t('noData'))}</small><details><summary>${esc(t('details'))}</summary><h3>${esc(t('before'))}</h3><pre>${esc(JSON.stringify(a.before,null,2))}</pre><h3>${esc(t('after'))}</h3><pre>${esc(JSON.stringify(a.after,null,2))}</pre></details></article>`).join('')}</div>`;
  else $('#list').innerHTML=`<div class="cards">${state.rows.map(o=>{
   const trash=state.view==='trash',client=trash?o.delete_snapshot?.client:o.client;
-  return `<article class="card"><div class="row"><h2>${esc(o.code)}</h2>${statusPill(trash?o.deleted_status:o.status)}</div><strong>${esc(client?.name||t('noData'))}</strong><p>${esc(client?.phone||t('noData'))}</p><p class="muted">${esc(trash?o.delete_snapshot?.order?.address:o.address)}</p><strong>${money(o.total)}</strong>${trash?`<small>${esc(date(o.deleted_at))} · ${esc(o.delete_snapshot?.actor?.full_name||actor(o.deleted_by))}</small><p>${esc(o.delete_reason)}</p>`:o.delete_requested_at?`<span class="pill">${esc(t('pending'))}</span><p>${esc(o.delete_request_reason)}</p>`:''}${button('details','details',`data-id="${esc(o.id)}"`)}</article>`;
+  return `<article class="card"><div class="row"><h2>${esc(o.code)}</h2>${statusPill(trash?o.deleted_status:o.status)}</div><strong>${esc(client?.name||t('noData'))}</strong><p>${esc(client?.phone||t('noData'))}</p><p class="muted">${esc(trash?o.delete_snapshot?.order?.address:o.address)}</p><strong>${orderPrice(o)}</strong>${trash?`<small>${esc(date(o.deleted_at))} · ${esc(o.delete_snapshot?.actor?.full_name||actor(o.deleted_by))}</small><p>${esc(o.delete_reason)}</p>`:o.delete_requested_at?`<span class="pill">${esc(t('pending'))}</span><p>${esc(o.delete_request_reason)}</p>`:''}${button('details','details',`data-id="${esc(o.id)}"`)}</article>`;
  }).join('')}</div>`;
  $('#pagination').innerHTML=state.cursor?button('more','more','class="more"'):'';
 }
@@ -105,16 +106,17 @@ async function openDetail(id) {
  const cancel=has('cancel')&&!closed&&(state.user.role!=='operator'||o.status==='new');
  const deleteBlocked=Number(o.paid_amount)>0||o.payment_recorded_at||o.washing_started_at||o.status==='delivered';
  $('#detail').innerHTML=`<div class="row dialog-head"><h2>${esc(o.code)}</h2>${button('close','close-detail')}</div>${statusPill(trash?o.deleted_status:o.status)}
-  <div class="detail-grid"><div><small>${esc(t('client'))}</small><strong>${esc(client?.name)}</strong>${esc(client?.phone)}</div><div><small>${esc(t('address'))}</small><strong>${esc(d.address)}</strong></div><div><small>${esc(t('sum'))}</small><strong>${money(d.total)}</strong></div><div><small>${esc(t('paid'))}</small><strong>${money(d.paid_amount)}</strong></div></div>
+  <div class="detail-grid"><div><small>${esc(t('client'))}</small><strong>${esc(client?.name)}</strong>${esc(client?.phone)}</div><div><small>${esc(t('address'))}</small><strong>${esc(d.address)}</strong></div><div><small>${esc(t('sum'))}</small><strong>${orderPrice(d)}</strong></div><div><small>${esc(t('paid'))}</small><strong>${money(d.paid_amount)}</strong></div></div>
   ${trash?`<div class="notice"><strong>${esc(t('deletedAt'))}: ${esc(date(o.deleted_at))}</strong><p>${esc(t('by'))}: ${esc(o.delete_snapshot?.actor?.full_name||actor(o.deleted_by))}</p><p>${esc(o.delete_reason)}</p><small>${esc(t('snapshotHint'))}</small></div>`:''}
   ${o.delete_requested_at?`<div class="notice">${esc(t('requestedAt'))}: ${esc(date(o.delete_requested_at))}<p>${esc(o.delete_request_reason)}</p><small>${esc(actor(o.delete_requested_by))}</small></div>`:''}
   ${o.cancelled_at?`<div class="notice">${esc(t('cancelledAt'))}: ${esc(date(o.cancelled_at))}<p>${esc(state.reasons.find(r=>r.code===o.cancel_reason_code)?.name_ru||o.cancel_reason_code)}: ${esc(o.cancel_comment)}</p><p>${esc(t('workAmount'))}: ${money(o.completed_work_amount)} · ${esc(t('paymentAmount'))}: ${money(o.cancellation_payment_amount)}</p></div>`:''}
   ${o.restored_at?`<p class="muted">${esc(t('restoredAt'))}: ${esc(date(o.restored_at))} · ${esc(actor(o.restored_by))}</p>`:''}
-  <h3>${esc(t('snapshot'))}</h3>${items.map(i=>`<div class="items">${esc(t('item'))} ${esc(i.seq)} · ${esc(i.length_m)} × ${esc(i.width_m)} ${esc(t('unitM'))} · ${esc(i.tariff_code)}<br>${money(i.price)}${i.note?`<p>${esc(i.note)}</p>`:''}</div>`).join('')}
+  <h3>${esc(t('snapshot'))}</h3>${items.map(i=>`<div class="items">${esc(t('item'))} ${esc(i.seq)} · ${i.length_m!=null?`${esc(i.length_m)} × ${esc(i.width_m)} ${esc(t('unitM'))}`:esc(t(i.unit==='piece'?'onePiece':'notMeasured'))} · ${esc(i.tariff_code)}<br>${i.measurement_origin==='pending'&&i.unit==='m2'?esc(t('priceAfterMeasurement')):money(i.price)}${i.note?`<p>${esc(i.note)}</p>`:''}</div>`).join('')}
   <h3>${esc(t('history'))}</h3><ul>${o.history.map(h=>`<li>${esc(date(h.created_at))} — ${esc(t(h.status))}${h.note?`<br><small>${esc(h.note)}</small>`:''}</li>`).join('')}</ul>
   ${!trash&&deleteBlocked?`<p class="muted">${esc(t('blockedDeletion'))}</p>`:''}<div class="actions">${trash&&has('restore')?button('restore','restore','class="primary"'):''}${!trash&&cancel?button('cancel','cancel','class="danger"'):''}${!trash&&has('delete')&&!deleteBlocked?button('remove','delete','class="danger"'):''}${!trash&&has('requestDeletion')&&o.status==='new'&&!o.delete_requested_at&&!deleteBlocked?button('requestDeletion','request-deletion'):''}</div>`;
  if(!trash)$('#detail').insertAdjacentHTML('beforeend',window.crmModules?.orderActions?.(o)||'');
  $('#detail').showModal();
+ if(!trash)await window.crmModules?.afterOrderDetail?.(o);
 }
 function actionForm(kind) {
  const o=state.selected;
@@ -127,24 +129,25 @@ function actionForm(kind) {
 let itemSequence=0;
 function itemFields() {
  const seq=++itemSequence;
- return `<fieldset data-item><legend>${esc(t('item'))}</legend><div class="two">${field('length','length_m','number','min="0.3" max="20" step="0.01" value="3" required',`length-${seq}`)}${field('width','width_m','number','min="0.3" max="20" step="0.01" value="2" required',`width-${seq}`)}</div><label>${esc(t('tariff'))}<select name="tariff" required>${state.tariffs.map(r=>`<option value="${esc(r.code)}">${esc(r.name)}</option>`).join('')}</select></label>${button('removeItem','remove-item')}</fieldset>`;
+ return `<fieldset data-item><legend>${esc(t('product'))}</legend><div class="two"><label>${esc(t('productType'))}<select name="tariff" required>${state.tariffs.map(r=>`<option value="${esc(r.code)}">${esc(r.name)} · ${money(r.price_per_m2)} / ${esc(t(r.unit==='piece'?'piece':'m2'))}</option>`).join('')}</select></label>${field('quantity','quantity','number','min="1" max="30" step="1" value="1" required',`quantity-${seq}`)}</div>${button('removeItem','remove-item')}</fieldset>`;
 }
 function newOrder(prefill={}) {
  $('#action').innerHTML=`<div class="row dialog-head"><h2>${esc(t('newOrder'))}</h2>${button('close','close-action')}</div><form data-form="create">
-  ${field('name','name','text','maxlength="120"')}${field('phone','phone','tel','value="+998" maxlength="32" required autocomplete="tel"')}${field('address','address','text','minlength="3" maxlength="300" required')}
+  ${field('name','name','text','maxlength="120"')}${field('phone','phone','tel','value="+998" maxlength="32" required autocomplete="tel"')}
   <div class="two">${field('pickupDate','pickup_date','date','required')}${field('pickupSlot','pickup_slot','text','maxlength="40"')}</div><label>${esc(t('source'))}<select name="source">${(window.crmModules?.sourceOptions?.()||['call_in','call_out','instagram','telegram'].map(v=>[v,t(v)])).map(([v,label])=>`<option value="${esc(v)}">${esc(label)}</option>`).join('')}</select></label>
   ${window.crmModules?.orderFields?.()||''}<div id="order-items">${(prefill.items?.length?prefill.items:[{}]).map(()=>itemFields()).join('')}</div>${button('addItem','add-item')}<div class="actions">${['urgent','stains','pensioner'].map(v=>`<label class="check"><input type="checkbox" name="${v}">${esc(t(v))}</label>`).join('')}</div><p class="muted">${esc(t('quoteHint'))}</p><p id="quote-result" class="success"></p><div data-error class="error" role="alert"></div><div class="actions">${button('quote','quote')}<button class="primary">${esc(t('create'))}</button></div></form>`;
- const form=$('#action form');for(const key of ['name','phone','address','source','pickup_slot','zone_code','latitude','longitude'])if(prefill[key]!=null&&form.elements[key])form.elements[key].value=prefill[key];
+ const form=$('#action form');for(const key of ['name','phone','source','pickup_slot'])if(prefill[key]!=null&&form.elements[key])form.elements[key].value=prefill[key];
  for(const flag of ['urgent','stains','pensioner'])if(prefill[flag])form.elements[flag].checked=true;
- form.querySelectorAll('[data-item]').forEach((el,index)=>{const it=prefill.items?.[index];if(it)for(const key of ['length_m','width_m','tariff'])el.querySelector(`[name=${key}]`).value=it[key];});
+ form.querySelectorAll('[data-item]').forEach((el,index)=>{const it=prefill.items?.[index];if(it){const select=el.querySelector('[name=tariff]');if([...select.options].some(o=>o.value===it.tariff))select.value=it.tariff;el.querySelector('[name=quantity]').value=it.quantity||1;}});
+ window.crmModules?.fillAddress?.(form,prefill);
  $('#action').querySelector('form').dataset.idempotencyKey=crypto.randomUUID();
  $('#action').showModal();
 }
 function orderBody(form) {
  const d=new FormData(form);
- return {name:d.get('name'),phone:d.get('phone'),address:d.get('address'),pickup_date:d.get('pickup_date'),pickup_slot:d.get('pickup_slot'),source:d.get('source'),urgent:d.has('urgent'),stains:d.has('stains'),pensioner:d.has('pensioner'),
-  ...(d.get('branch_id')?{branch_id:d.get('branch_id')}:{}),...(d.get('zone_code')?{zone_code:d.get('zone_code')}:{}),...(d.get('latitude')?{latitude:Number(d.get('latitude'))}:{}),...(d.get('longitude')?{longitude:Number(d.get('longitude'))}:{}),
-  items:[...form.querySelectorAll('[data-item]')].map(el=>({length_m:Number(el.querySelector('[name=length_m]').value),width_m:Number(el.querySelector('[name=width_m]').value),tariff:el.querySelector('[name=tariff]').value}))};
+ return {name:d.get('name'),phone:d.get('phone'),pickup_date:d.get('pickup_date'),pickup_slot:d.get('pickup_slot'),source:d.get('source'),urgent:d.has('urgent'),stains:d.has('stains'),pensioner:d.has('pensioner'),private_house:d.has('private_house'),
+  ...Object.fromEntries(['branch_id','region_code','district_code','street','house','apartment','landmark'].filter(k=>d.get(k)).map(k=>[k,d.get(k)])),
+  items:[...form.querySelectorAll('[data-item]')].map(el=>({quantity:Number(el.querySelector('[name=quantity]').value),tariff:el.querySelector('[name=tariff]').value}))};
 }
 async function finishAction() {$('#action').close();$('#detail').close();toast(t('saved'));await loadList();}
 
@@ -184,21 +187,29 @@ document.addEventListener('click',async event=>{
   if(action==='remove-item'&&$('#order-items').children.length>1)el.closest('[data-item]').remove();
   if(action==='quote'){
    const form=el.closest('form');if(!form.reportValidity())return;el.disabled=true;
-   const quote=await api('/quote',{method:'POST',body:orderBody(form)});$('#quote-result').textContent=`${t('sum')}: ${money(quote.total)}`;
+   const quote=await api('/quote',{method:'POST',body:orderBody(form)});$('#quote-result').textContent=quote.pending_measurements?t('priceAfterMeasurement'):`${t('sum')}: ${money(quote.total)}`;
   }
  }catch(e){toast(e.message);}finally{el.disabled=false;}
 });
 document.addEventListener('input',event=>{if(event.target.closest('[data-form=create]')&&$('#quote-result'))$('#quote-result').textContent='';});
+document.addEventListener('change',async event=>{
+ const form=event.target.closest('[data-form=create]');if(!form||event.target.name!=='branch_id')return;
+ const branch=event.target.value;
+ try{const meta=await api('/workspaces/bootstrap?'+new URLSearchParams({branch_id:branch}));if(!form.isConnected||form.elements.branch_id.value!==branch)return;state.tariffs=meta.tariffs.filter(t=>t.active);
+ for(const el of form.querySelectorAll('[name=tariff]')){const previous=el.value;el.innerHTML=state.tariffs.map(r=>`<option value="${esc(r.code)}">${esc(r.name)} · ${money(r.price_per_m2)} / ${esc(t(r.unit==='piece'?'piece':'m2'))}</option>`).join('');if(state.tariffs.some(r=>r.code===previous))el.value=previous;}
+ if($('#quote-result'))$('#quote-result').textContent='';
+ }catch(e){toast(e.message);}
+});
 let phoneLookupTimer;
 document.addEventListener('input',event=>{const form=event.target.closest('[data-form=create]');if(form&&event.target.name==='phone'){clearTimeout(phoneLookupTimer);const phone=event.target.value.replace(/[\s()-]/g,'');if(/^(?:\+?998)?\d{9}$/.test(phone))phoneLookupTimer=setTimeout(()=>window.crmModules?.lookupInOrderForm(form,phone).catch(()=>{}),400);}});
-document.addEventListener('change',event=>{if(event.target.name==='saved_address'){const form=event.target.closest('[data-form=create]');if(form)form.elements.address.value=event.target.value;}});
+document.addEventListener('change',event=>{if(event.target.name==='saved_address'){const form=event.target.closest('[data-form=create]');if(form&&form.elements.address)form.elements.address.value=event.target.value;}});
 
 async function start() {
  document.title=t('title');
  const token=location.pathname.match(/^\/track\/([^/]+)$/)?.[1];
  if(token){
   shell();$('#main').textContent=t('loading');
-  try{const o=await api(`/public/track/${encodeURIComponent(token)}`);$('#main').innerHTML=`<section class="box"><h1>${esc(t('trackTitle'))} ${esc(o.code)}</h1><p class="muted">${esc(t('trackHint'))}</p>${statusPill(o.status)}<p>${money(o.total)}</p><ul>${o.history.map(h=>`<li>${esc(date(h.at))} — ${esc(t(h.status))}</li>`).join('')}</ul></section>`;}
+  try{const o=await api(`/public/track/${encodeURIComponent(token)}`);$('#main').innerHTML=`<section class="box"><h1>${esc(t('trackTitle'))} ${esc(o.code)}</h1><p class="muted">${esc(t('trackHint'))}</p>${statusPill(o.status)}<p>${orderPrice(o)}</p><ul>${o.history.map(h=>`<li>${esc(date(h.at))} — ${esc(t(h.status))}</li>`).join('')}</ul></section>`;}
   catch{$('#main').innerHTML=`<section class="box"><h1>${esc(t('trackTitle'))}</h1><p>${esc(t('trackUnavailable'))}</p></section>`;}
   return;
  }

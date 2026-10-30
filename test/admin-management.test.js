@@ -66,7 +66,7 @@ test('управление: архив тарифа действует толь�
   const id=await create(db),original=(await db.query('select total from orders where id=$1',[id])).rows[0].total;
   const b=await command(db,'branch.save',{code:'tariff_branch',name:'Другой'});
   await command(db,'tariff.schedule',{branch_id:branch,code:'wool',name:'Новая шерсть',price_per_m2:35000,active:true,effective_at:new Date().toISOString()});
-  const meta=await call(db,'crm_workspace',['bootstrap','{}',ids.operator]);assert.equal(meta.tariffs.find(t=>t.code==='wool').name,'Новая шерсть');
+  const meta=await call(db,'crm_workspace',['bootstrap','{}',ids.operator]);assert.equal(meta.tariffs.some(t=>t.code==='wool'),false);assert.equal((await call(db,'crm_tariff_info',['wool',branch])).name,'Новая шерсть');
   await command(db,'tariff.schedule',{branch_id:branch,code:'wool',name:'Будущий',price_per_m2:45000,active:true,effective_at:new Date(Date.now()+7200000).toISOString()});
   await admin(db,'archive',{entity:'tariff',code:'wool',branch_id:branch});await fails(()=>create(db),'23514');
   assert.equal(await call(db,'crm_rate',['wool',branch,new Date(Date.now()+10800000).toISOString()]),null);

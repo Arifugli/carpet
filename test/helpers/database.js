@@ -26,6 +26,11 @@ export async function database({beforeLifecycle,stage=99,legacyGrants=true}={}) 
  }
  const remaining=(await readdir(new URL('../../supabase/migrations/',import.meta.url))).filter(n=>/^\d+_.*\.sql$/.test(n)&&n>'0004_dispatcher_role.sql'&&(stage>2||n<'0006')).sort();
  if(stage>=2)for(const name of remaining) await db.exec(await readFile(new URL(`../../supabase/migrations/${name}`,import.meta.url),'utf8'));
+ if(remaining.some(n=>n.startsWith('0011'))){
+  await db.exec(`create function public.test_legacy_order(p jsonb,u uuid,ip inet) returns uuid language plpgsql security invoker as $$begin perform public.lifecycle_actor(u,ip);return public.crm_create_order_v10(p,u);end$$;
+   revoke all on function public.test_legacy_order(jsonb,uuid,inet) from public,anon,authenticated;grant execute on function public.test_legacy_order(jsonb,uuid,inet) to service_role;`);
+  db.legacyFixture=true;
+ }
  await db.exec('set role service_role');
  return db;
 }
@@ -34,4 +39,4 @@ export async function call(db,name,args) {
  const {rows}=await db.query(`select to_jsonb(public.${name}(${placeholders})) as result`,args);
  return rows[0].result;
 }
-export const create=(db,overrides={})=>call(db,'create_order_audited',[JSON.stringify({...input,...overrides}),ids.operator,'127.0.0.1']);
+export const create=(db,overrides={})=>call(db,db.legacyFixture?'test_legacy_order':'create_order_audited',[JSON.stringify({...input,...overrides}),ids.operator,'127.0.0.1']);

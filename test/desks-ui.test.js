@@ -22,8 +22,9 @@ test('экраны: повторный заказ, перезвон, доска 
   await login('operator');await wait(()=>d.querySelector('.card'));
   click('[data-view=clients]');await wait(()=>d.querySelector('[data-desk-filter]'));d.querySelector('[name=phone]').value='+998901234567';submit('[data-desk-filter]');
   await wait(()=>d.querySelector('[data-desk=repeat]'));click('[data-desk=repeat]');await wait(()=>d.querySelector('#action[open] [data-form=create]'));
-  assert.equal(d.querySelector('#action [name=phone]').value,'+998901234567');assert.equal(d.querySelector('#action [name=length_m]').value,'3');
-  d.querySelector('#action [name=pickup_date]').value='2026-10-30';click('[data-action=quote]');await wait(()=>d.querySelector('#quote-result').textContent.includes('180'));
+  assert.equal(d.querySelector('#action [name=phone]').value,'+998901234567');assert.equal(d.querySelector('#action [name=length_m]'),null);assert.equal(d.querySelector('#action [name=quantity]').value,'1');
+  for(const [key,value] of Object.entries({district_code:'fergana_city',street:'Тестовая',house:'1',apartment:'2'}))d.querySelector(`#action [name=${key}]`).value=value;
+  d.querySelector('#action [name=pickup_date]').value='2026-10-30';click('[data-action=quote]');await wait(()=>d.querySelector('#quote-result').textContent.includes('Стоимость после замера'));
   click('[data-action=close-action]');click('[data-view=leads]');await wait(()=>d.querySelector('[data-form-name="lead.save"]'));
   click('[data-form-name="lead.save"]');d.querySelector('#action [name=phone]').value='+998901234567';d.querySelector('#action [name=outcome]').value='callback';d.querySelector('#action [name=callback_at]').value='2026-10-30T11:00';submit('[data-desk-form="lead.save"]');
   await wait(()=>!d.querySelector('#action[open]'));click('[data-view=tasks]');await wait(()=>d.querySelector('[data-desk=task-complete]'));

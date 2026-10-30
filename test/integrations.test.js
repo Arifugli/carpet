@@ -19,10 +19,11 @@ test('CSV/XLSX: кавычки и Unicode, формулы/zip bomb отверг�
  assert.match(exportCsv([{name:'=HYPERLINK("bad")'}],['name']),/'=HYPERLINK/);assert.throws(()=>parseCsv('a\n"broken'),/кавычка/);
 });
 test('HTTP: подпись формы, идемпотентный REST intake, права новых действий и импорт',async()=>{
+ const intake={name:'Тест',phone:'+998901234569',pickup_date:'2026-10-30',region_code:'fergana',district_code:'fergana_city',street:'Тестовая',house:'1',private_house:true,items:[{tariff:'blanket',quantity:2}]};
  const fixture=await workflowServer({externalSecret:'test-secret',externalActor:ids.operator});try{
   const send=async(path,body,{role,secret,key=randomUUID()}={})=>{const raw=JSON.stringify(body),ts=String(Math.floor(Date.now()/1000));return fetch(fixture.url+'/api'+path,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key,...(role?{Authorization:'Bearer '+role}:{}),...(secret?{'X-CRM-Timestamp':ts,'X-CRM-Signature':sign(secret,`${ts}.${path==='/integrations/orders'?key+'.':''}${raw}`)}:{})},body:raw});};
-  assert.equal((await send('/integrations/orders',input,{secret:'bad'})).status,401);
-  const key=randomUUID(),first=await(await send('/integrations/orders',input,{secret:'test-secret',key})).json();assert.ok(first.id);assert.deepEqual(await(await send('/integrations/orders',input,{secret:'test-secret',key})).json(),first);
+  assert.equal((await send('/integrations/orders',intake,{secret:'bad'})).status,401);
+  const key=randomUUID(),first=await(await send('/integrations/orders',intake,{secret:'test-secret',key})).json();assert.ok(first.id);assert.deepEqual(await(await send('/integrations/orders',intake,{secret:'test-secret',key})).json(),first);
   assert.equal((await send('/actions/payment.refund',{order_id:first.id,amount:1,method:'cash',note:'Причина'},{role:'operator'})).status,403);
   assert.equal((await fetch(fixture.url+'/api/ops/stock',{headers:{Authorization:'Bearer operator'}})).status,403);
   const body={format:'csv',data:Buffer.from('name,phone,address\nИмпорт,+998901234570,Ташкент 5').toString('base64'),branch_id:bid,dry_run:true},preview=await(await send('/imports/clients',body,{role:'admin',key})).json();assert.equal(preview.rows,1);

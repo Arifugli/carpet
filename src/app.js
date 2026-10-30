@@ -19,7 +19,7 @@ import {validationResponse} from './validation.js';
 export function createApp({db,authClient,config={},authenticate}={}) {
  const app=express();
  app.set('trust proxy',config.trustProxy??1);
- app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'"],imgSrc:["'self'",'data:','https:'],connectSrc:["'self'",...(config.supabaseUrl?[new URL(config.supabaseUrl).origin]:[])],upgradeInsecureRequests:null}}}));
+ app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'"],imgSrc:["'self'",'data:','https:'],frameSrc:["'self'",'https://yandex.ru'],connectSrc:["'self'",...(config.supabaseUrl?[new URL(config.supabaseUrl).origin]:[])],upgradeInsecureRequests:null}}}));
  app.use(cors({origin:config.corsOrigins?.length?config.corsOrigins:false}));
  app.use((req,res,next)=>{const started=performance.now(),id=randomUUID();res.set('X-Request-Id',id);res.on('finish',()=>{if(config.requestLogging)console.log(JSON.stringify({event:'http',request_id:id,method:req.method,route:req.route?.path||'static',status:res.statusCode,duration_ms:Math.round(performance.now()-started)}));});next();});
  app.use(express.json({limit:'3mb',verify:(req,_res,buffer)=>{req.rawBody=buffer;}}));

@@ -29,7 +29,7 @@ test('DOM + HTTP + SQL: admin изменяет, удаляет и восстан
    {tab:'branches',entity:'branch',id:b.id,field:'name',value:'UI новый филиал',check:()=>f.sql.query('select name value from branches where id=$1',[b.id])},
    {tab:'catalogs',entity:'catalog',id:c.id,field:'name_ru',value:'UI новый источник',check:()=>f.sql.query('select name_ru value from catalog_entries where id=$1',[c.id])},
    {tab:'templates',entity:'template',id:template.id,field:'body',value:'UI новый шаблон',check:()=>f.sql.query('select body value from notification_templates where id=$1',[template.id])},
-   {tab:'tariffs',entity:'tariff',id:'wool',field:'price_per_m2',value:'37000',check:()=>f.sql.query("select price_per_m2::text value from tariff_versions where code='wool' and branch_id=$1 order by created_at desc limit 1",[branch]),primary:true},
+   {tab:'tariffs',entity:'tariff',id:'carpet',field:'price_per_m2',value:'37000',check:()=>f.sql.query("select price_per_m2::text value from tariff_versions where code='carpet' and branch_id=$1 order by created_at desc limit 1",[branch]),primary:true},
   ];
   for(const x of cases){
    click(`[data-desk=admin-tab][data-tab=${x.tab}]`);

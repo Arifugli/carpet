@@ -16,7 +16,7 @@ async function receive(id) {
 test('цена из SQL: площадь, надбавки, округление, доставка и скидка',async()=>{
  assert.equal((await call(db,'quote_order',[JSON.stringify(input)])).total,180000);
  const p={...input,items:[{length_m:1,width_m:1,tariff:'syn'}],urgent:true,stains:true,pensioner:true};
- assert.deepEqual(await call(db,'quote_order',[JSON.stringify(p)]),{area_m2:1,subtotal:20000,adjustment:7000,delivery_fee:20000,total:47000});
+ const quote=await call(db,'quote_order',[JSON.stringify(p)]);assert.deepEqual(Object.fromEntries(['area_m2','subtotal','adjustment','delivery_fee','total'].map(k=>[k,quote[k]])),{area_m2:1,subtotal:20000,adjustment:7000,delivery_fee:20000,total:47000});
  await assert.rejects(()=>call(db,'quote_order',[JSON.stringify({...input,items:[{length_m:1,width_m:1,tariff:'missing'}]})]));
 });
 test('миграции повторяемы и не меняют существующие данные',async()=>{
@@ -43,7 +43,7 @@ test('отказ: причина и комментарий обязательн�
 });
 test('создание идемпотентно; изменённый запрос и повтор после удаления отклоняются',async()=>{
  const key='40000000-0000-4000-8000-000000000001';
- const args=[JSON.stringify(input),ids.operator,'127.0.0.1',key];
+ const args=[JSON.stringify(input),ids.admin,'127.0.0.1',key];
  const id=await call(db,'create_order_audited',args);
  assert.equal(await call(db,'create_order_audited',args),id);
  await expectError(()=>call(db,'create_order_audited',[JSON.stringify({...input,urgent:true}),...args.slice(1)]),'55000');
