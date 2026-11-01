@@ -1,0 +1,37 @@
+name: Production smoke 0.8.0
+on:
+  push:
+    branches: [codex/verify-production-v080]
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: a1db41a1d6999151d160a667a5266c7ceb11d7e8
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Check public HTTPS and deployed assets
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {createHash} from 'node:crypto';
+          import {readFile} from 'node:fs/promises';
+          const base='https://kover-crm-api.onrender.com';
+          for(const path of ['/health','/ready','/','/kanban.js','/app.js','/i18n.js','/sw.js','/api/me']){
+            const r=await fetch(base+path,{signal:AbortSignal.timeout(30000)});
+            const body=await r.text();
+            assert.equal(r.status,path==='/api/me'?401:200,path);
+            if(path==='/health'||path==='/ready')assert.equal(JSON.parse(body).ok,true);
+            if(path==='/')assert.ok(body.includes('/kanban.js'));
+            if(path.endsWith('.js')){
+              const expected=await readFile('public'+path);
+              assert.equal(createHash('sha256').update(body).digest('hex'),createHash('sha256').update(expected).digest('hex'),path);
+            }
+            console.log(JSON.stringify({path,status:r.status,verified:true}));
+          }
+          NODE
