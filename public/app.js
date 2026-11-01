@@ -30,7 +30,7 @@ function logout() {
 }
 function shell() {
  document.title=t('title');
- $('#header').innerHTML=`<div class="bar"><div class="brand">${esc(t('title'))}<small>${esc(t('subtitle'))}</small></div>${state.user?`<div class="actions"><div class="user">${esc(state.user.full_name)}<small>${esc(t(state.user.role))}</small></div>${button('logout','logout')}</div>`:''}</div>${state.user?`<nav>${[...(window.crmModules?.views(state.user)||[]),'orders',...(has('trash')?['requests','trash']:[]),...(has('audit')?['audit']:[])].map(view=>`<button type="button" data-view="${view}" aria-current="${state.view===view}">${esc(t(view))}</button>`).join('')}</nav>`:''}`;
+ $('#header').innerHTML=`<div class="bar"><div class="brand">${esc(t('title'))}<small>${esc(t('subtitle'))}</small></div>${state.user?`<div class="actions"><div class="user">${esc(state.user.full_name)}<small>${esc(t(state.user.role))}</small></div>${button('logout','logout')}</div>`:''}</div>${state.user?`<nav>${[...(window.crmModules?.views(state.user)||[]),...(has('trash')?['requests','trash']:[]),...(has('audit')?['audit']:[])].map(view=>`<button type="button" data-view="${view}" aria-current="${state.view===view}">${esc(t(view))}</button>`).join('')}</nav>`:''}`;
 }
 function loginScreen() {
  shell();
@@ -60,7 +60,7 @@ function filterForm() {
   <div class="field"><label for="deleted_by">${esc(t('deletedBy'))}</label><select name="deleted_by" id="deleted_by"><option value="">${esc(t('allStaff'))}</option>${state.staff.map(u=>`<option value="${esc(u.id)}" ${u.id===f.deleted_by?'selected':''}>${esc(u.full_name||u.id)}</option>`).join('')}</select></div>
   ${field('from','from','date',`value="${esc(f.from||'')}"`)}${field('to','to','date',`value="${esc(f.to||'')}"`)}${field('reason','reason','text',`maxlength="500" value="${esc(f.reason||'')}"`)}<button>${esc(t('filter'))}</button></form>`;
  if (state.view==='audit') return `<p class="muted">${esc(t('auditHint'))}</p><form class="filters" data-form="filters">${field('entity','entity_id','text',`placeholder="UUID" value="${esc(f.entity_id||'')}"`)}<div class="field"><label for="action-filter">${esc(t('action'))}</label><select id="action-filter" name="action"><option value="">${esc(t('noData'))}</option>${['created','cancelled','deletion_requested','deleted','restored','status_changed','driver_assigned','updated'].map(v=>`<option value="${v}" ${f.action===v?'selected':''}>${esc(t(v))}</option>`).join('')}</select></div><button>${esc(t('filter'))}</button></form>`;
- return `<form class="filters" data-form="filters"><div class="field search"><label for="q">${esc(t('search'))}</label><input id="q" name="q" maxlength="120" value="${esc(f.q||'')}"></div><div class="field"><label for="status-filter">${esc(t('status'))}</label><select id="status-filter" name="status"><option value="">${esc(t('allStatuses'))}</option>${['new','pickup_assigned','received','washing','drying','ready','delivering','delivered','cancelled'].map(v=>`<option value="${v}" ${f.status===v?'selected':''}>${esc(t(v))}</option>`).join('')}</select></div><button>${esc(t('filter'))}</button></form>`;
+ return `<form class="filters" data-form="filters"><div class="field search"><label for="q">${esc(t('search'))}</label><input id="q" name="q" maxlength="120" value="${esc(f.q||'')}"></div><div class="field"><label for="status-filter">${esc(t('status'))}</label><select id="status-filter" name="status"><option value="">${esc(t('allStatuses'))}</option>${['new','pickup_planned','warehouse','washing','packing','ready_for_delivery','in_transit','delivered','postponed','cancelled'].map(v=>`<option value="${v}" ${f.status===v?'selected':''}>${esc(t(v))}</option>`).join('')}</select></div><button>${esc(t('filter'))}</button></form>`;
 }
 async function listScreen() {
  shell();
@@ -69,6 +69,7 @@ async function listScreen() {
  await loadList();
 }
 async function loadList(append=false) {
+ if(window.crmModules?.views(state.user).includes(state.view)){await window.crmModules.render(state.view);return;}
  const request=++state.request,view=state.view;
  if(!append) {state.rows=[];$('#list').textContent=t('loading');}
  const params=new URLSearchParams(Object.entries(state.filters).filter(([,v])=>v));
@@ -103,7 +104,7 @@ async function openDetail(id) {
  state.selected={...o,isTrash:trash};
  const d=trash?o.delete_snapshot?.order||o:o,client=trash?o.delete_snapshot?.client:o.client,items=trash?o.delete_snapshot?.items||[]:o.items;
  const closed=['cancelled','delivered'].includes(o.status);
- const cancel=has('cancel')&&!closed&&(state.user.role!=='operator'||o.status==='new');
+ const cancel=has('cancel')&&!closed;
  const deleteBlocked=Number(o.paid_amount)>0||o.payment_recorded_at||o.washing_started_at||o.status==='delivered';
  $('#detail').innerHTML=`<div class="row dialog-head"><h2>${esc(o.code)}</h2>${button('close','close-detail')}</div>${statusPill(trash?o.deleted_status:o.status)}
   <div class="detail-grid"><div><small>${esc(t('client'))}</small><strong>${esc(client?.name)}</strong>${esc(client?.phone)}</div><div><small>${esc(t('address'))}</small><strong>${esc(d.address)}</strong></div><div><small>${esc(t('sum'))}</small><strong>${orderPrice(d)}</strong></div><div><small>${esc(t('paid'))}</small><strong>${money(d.paid_amount)}</strong></div></div>
@@ -111,8 +112,8 @@ async function openDetail(id) {
   ${o.delete_requested_at?`<div class="notice">${esc(t('requestedAt'))}: ${esc(date(o.delete_requested_at))}<p>${esc(o.delete_request_reason)}</p><small>${esc(actor(o.delete_requested_by))}</small></div>`:''}
   ${o.cancelled_at?`<div class="notice">${esc(t('cancelledAt'))}: ${esc(date(o.cancelled_at))}<p>${esc(state.reasons.find(r=>r.code===o.cancel_reason_code)?.name_ru||o.cancel_reason_code)}: ${esc(o.cancel_comment)}</p><p>${esc(t('workAmount'))}: ${money(o.completed_work_amount)} · ${esc(t('paymentAmount'))}: ${money(o.cancellation_payment_amount)}</p></div>`:''}
   ${o.restored_at?`<p class="muted">${esc(t('restoredAt'))}: ${esc(date(o.restored_at))} · ${esc(actor(o.restored_by))}</p>`:''}
-  <h3>${esc(t('snapshot'))}</h3>${items.map(i=>`<div class="items">${esc(t('item'))} ${esc(i.seq)} · ${i.length_m!=null?`${esc(i.length_m)} × ${esc(i.width_m)} ${esc(t('unitM'))}`:esc(t(i.unit==='piece'?'onePiece':'notMeasured'))} · ${esc(i.tariff_code)}<br>${i.measurement_origin==='pending'&&i.unit==='m2'?esc(t('priceAfterMeasurement')):money(i.price)}${i.note?`<p>${esc(i.note)}</p>`:''}</div>`).join('')}
-  <h3>${esc(t('history'))}</h3><ul>${o.history.map(h=>`<li>${esc(date(h.created_at))} — ${esc(t(h.status))}${h.note?`<br><small>${esc(h.note)}</small>`:''}</li>`).join('')}</ul>
+  <h3>${esc(t('snapshot'))}</h3>${items.map(i=>`<div class="items">${esc(t('item'))} ${esc(i.seq)} · ${i.length_m!=null?`${esc(i.length_m)} × ${esc(i.width_m)} ${esc(t('unitM'))}`:i.unit==='piece'?`${esc(i.quantity||1)} ${esc(t('piece'))}`:esc(t('notMeasured'))} · ${esc(i.tariff_code)}<br>${i.measurement_origin==='pending'&&i.unit==='m2'?esc(t('priceAfterMeasurement')):money(i.price)}${i.note?`<p>${esc(i.note)}</p>`:''}</div>`).join('')}
+  <h3>${esc(t('history'))}</h3><ul>${(o.history||[]).map(h=>`<li>${esc(date(h.created_at))} — ${esc(t(h.status))}${h.note?`<br><small>${esc(h.note)}</small>`:''}</li>`).join('')}</ul>
   ${!trash&&deleteBlocked?`<p class="muted">${esc(t('blockedDeletion'))}</p>`:''}<div class="actions">${trash&&has('restore')?button('restore','restore','class="primary"'):''}${!trash&&cancel?button('cancel','cancel','class="danger"'):''}${!trash&&has('delete')&&!deleteBlocked?button('remove','delete','class="danger"'):''}${!trash&&has('requestDeletion')&&o.status==='new'&&!o.delete_requested_at&&!deleteBlocked?button('requestDeletion','request-deletion'):''}</div>`;
  if(!trash)$('#detail').insertAdjacentHTML('beforeend',(window.crmModules?.photoGallery?.({order_id:o.id})||'')+(window.crmModules?.photoGallery?.({client_id:o.client_id,branch_id:o.branch_id,client:true})||'')+(window.crmModules?.orderActions?.(o)||''));
  $('#detail').showModal();
@@ -133,9 +134,9 @@ function itemFields() {
 }
 function newOrder(prefill={}) {
  $('#action').innerHTML=`<div class="row dialog-head"><h2>${esc(t('newOrder'))}</h2>${button('close','close-action')}</div><form data-form="create">
-  ${field('name','name','text','maxlength="120"')}${field('phone','phone','tel','value="+998" maxlength="32" required autocomplete="tel"')}
-  <div class="two">${field('pickupDate','pickup_date','date','required')}${field('pickupSlot','pickup_slot','text','maxlength="40"')}</div><label>${esc(t('source'))}<select name="source">${(window.crmModules?.sourceOptions?.()||['call_in','call_out','instagram','telegram'].map(v=>[v,t(v)])).map(([v,label])=>`<option value="${esc(v)}">${esc(label)}</option>`).join('')}</select></label>
-  ${window.crmModules?.orderFields?.()||''}<div id="order-items">${(prefill.items?.length?prefill.items:[{}]).map(()=>itemFields()).join('')}</div>${button('addItem','add-item')}<div class="actions">${['urgent','stains','pensioner'].map(v=>`<label class="check"><input type="checkbox" name="${v}">${esc(t(v))}</label>`).join('')}</div><p class="muted">${esc(t('quoteHint'))}</p><p id="quote-result" class="success"></p><div data-error class="error" role="alert"></div><div class="actions">${button('quote','quote')}<button class="primary">${esc(t('create'))}</button></div></form>`;
+  ${field('clientFullName','name','text','required maxlength="120"')}${field('phone','phone','tel','value="+998" maxlength="32" required autocomplete="tel"')}
+  <div class="two">${field('desiredPickupDate','pickup_date','date')}${field('pickupSlot','pickup_slot','text','maxlength="40"')}</div><label>${esc(t('source'))}<select name="source">${(window.crmModules?.sourceOptions?.()||['call_in','call_out','instagram','telegram'].map(v=>[v,t(v)])).map(([v,label])=>`<option value="${esc(v)}">${esc(label)}</option>`).join('')}</select></label>
+  ${window.crmModules?.orderFields?.()||''}${field('comment','comment','text','maxlength="500"')}<div id="order-items">${(prefill.items?.length?prefill.items:[{}]).map(()=>itemFields()).join('')}</div>${button('addItem','add-item')}<div class="actions">${['urgent','stains','pensioner'].map(v=>`<label class="check"><input type="checkbox" name="${v}">${esc(t(v))}</label>`).join('')}</div><p class="muted">${esc(t('quoteHint'))}</p><p id="quote-result" class="success"></p><div data-error class="error" role="alert"></div><div class="actions">${button('quote','quote')}<button class="primary">${esc(t('create'))}</button></div></form>`;
  const form=$('#action form');for(const key of ['name','phone','source','pickup_slot'])if(prefill[key]!=null&&form.elements[key])form.elements[key].value=prefill[key];
  for(const flag of ['urgent','stains','pensioner'])if(prefill[flag])form.elements[flag].checked=true;
  form.querySelectorAll('[data-item]').forEach((el,index)=>{const it=prefill.items?.[index];if(it){const select=el.querySelector('[name=tariff]');if([...select.options].some(o=>o.value===it.tariff))select.value=it.tariff;el.querySelector('[name=quantity]').value=it.quantity||1;}});
@@ -145,7 +146,7 @@ function newOrder(prefill={}) {
 }
 function orderBody(form) {
  const d=new FormData(form);
- return {name:d.get('name'),phone:d.get('phone'),pickup_date:d.get('pickup_date'),pickup_slot:d.get('pickup_slot'),source:d.get('source'),urgent:d.has('urgent'),stains:d.has('stains'),pensioner:d.has('pensioner'),private_house:d.has('private_house'),
+ return {name:d.get('name'),phone:d.get('phone'),...(d.get('pickup_date')?{pickup_date:d.get('pickup_date')}:{}),comment:d.get('comment')||'',pickup_slot:d.get('pickup_slot'),source:d.get('source'),urgent:d.has('urgent'),stains:d.has('stains'),pensioner:d.has('pensioner'),private_house:d.has('private_house'),
   ...Object.fromEntries(['branch_id','region_code','district_code','street','house','apartment','landmark'].filter(k=>d.get(k)).map(k=>[k,d.get(k)])),
   items:[...form.querySelectorAll('[data-item]')].map(el=>({quantity:Number(el.querySelector('[name=quantity]').value),tariff:el.querySelector('[name=tariff]').value}))};
 }
@@ -209,7 +210,7 @@ async function start() {
  const token=location.pathname.match(/^\/track\/([^/]+)$/)?.[1];
  if(token){
   shell();$('#main').textContent=t('loading');
-  try{const o=await api(`/public/track/${encodeURIComponent(token)}`);$('#main').innerHTML=`<section class="box"><h1>${esc(t('trackTitle'))} ${esc(o.code)}</h1><p class="muted">${esc(t('trackHint'))}</p>${statusPill(o.status)}<p>${orderPrice(o)}</p><ul>${o.history.map(h=>`<li>${esc(date(h.at))} — ${esc(t(h.status))}</li>`).join('')}</ul></section>`;}
+  try{const o=await api(`/public/track/${encodeURIComponent(token)}`);$('#main').innerHTML=`<section class="box"><h1>${esc(t('trackTitle'))} ${esc(o.code)}</h1><p class="muted">${esc(t('trackHint'))}</p>${statusPill(o.status)}<p>${orderPrice(o)}</p><ul>${(o.history||[]).map(h=>`<li>${esc(date(h.at))} — ${esc(t(h.status))}</li>`).join('')}</ul></section>`;}
   catch{$('#main').innerHTML=`<section class="box"><h1>${esc(t('trackTitle'))}</h1><p>${esc(t('trackUnavailable'))}</p></section>`;}
   return;
  }

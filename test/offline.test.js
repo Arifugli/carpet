@@ -24,14 +24,14 @@ test('PWA: смена пользователя останавливает оче
  const {dom,w,queue}=await environment();try{
   let current='a';w.crmUI={user:()=>({id:current})};
   await queue.snapshot('a','jobs',{private:true});assert.equal(await queue.read('b','jobs'),undefined);
-  await queue.enqueue('a','visit.event',{visit_id:'1'});await queue.enqueue('a','visit.event',{visit_id:'2'});
+  await queue.enqueue('a','pickup.handover',{visit_id:'1'});await queue.enqueue('a','pickup.handover',{visit_id:'2'});
   let calls=0;await queue.sync('a',async()=>{calls++;current='b';return {ok:true};});
   assert.equal(calls,1);assert.equal((await queue.list('a')).length,1);assert.equal((await queue.list('b')).length,0);
  }finally{dom.window.close();}
 });
 test('PWA: конфликт сохраняет действие для проверки и не отправляет следующие действия',async()=>{
  const {dom,queue}=await environment();try{
-  const first=await queue.enqueue('a','workshop.advance',{expected_stage:'washing'});await queue.enqueue('a','workshop.advance',{expected_stage:'drying'});
+  const first=await queue.enqueue('a','wash.dry',{order_id:'1'});await queue.enqueue('a','wash.dry',{order_id:'2'});
   let calls=0;await queue.sync('a',async()=>{calls++;throw Object.assign(new Error('Этап изменился'),{status:409});});
   assert.equal(calls,1);assert.equal((await queue.list('a')).find(e=>e.id===first.id).state,'review');
   await queue.sync('a',async()=>{calls++;});assert.equal(calls,1);

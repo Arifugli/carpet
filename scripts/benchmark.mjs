@@ -5,7 +5,7 @@ const db=await database();try{
  const id=await create(db);await db.exec('reset role; alter table orders disable trigger user;');
  await db.query(`insert into orders(client_id,address,pickup_date,source,subtotal,adjustment,delivery_fee,total,created_by,branch_id,created_at)
  select client_id,address,pickup_date,source,subtotal,adjustment,delivery_fee,total,created_by,branch_id,now()-n*interval '1 minute' from orders cross join generate_series(1,50000)n where id=$1`,[id]);
- await db.exec("insert into order_items(order_id,seq,length_m,width_m,tariff_code,price) select o.id,1,3,2,'wool',180000 from orders o where not exists(select 1 from order_items i where i.order_id=o.id);");
+ await db.exec("insert into order_items(order_id,seq,length_m,width_m,tariff_code,price) select o.id,1,3,2,'carpet',72000 from orders o where not exists(select 1 from order_items i where i.order_id=o.id);");
  await db.exec('alter table orders enable trigger user; analyze orders; set role service_role;');
  const sql=`select o.id,o.number,o.status,o.total,o.created_at,c.name,c.phone,(select coalesce(jsonb_agg(jsonb_build_object('id',i.id)),'[]') from order_items i where i.order_id=o.id) items from orders o join clients c on c.id=o.client_id where o.deleted_at is null and o.branch_id=$1 and (o.created_at,o.id)<($2::timestamptz,$3::uuid) order by o.created_at desc,o.id desc limit 51`;
  const args=['01000000-0000-4000-8000-000000000001',new Date().toISOString(),'ffffffff-ffff-4fff-bfff-ffffffffffff'],times=[];

@@ -3,12 +3,23 @@ import {z} from 'zod';
 import {COMMANDS,commandNames} from '../commands.js';
 import {allow,can,canReadOrder} from '../permissions.js';
 import {checked,HttpError} from '../http.js';
+import {ROLES,driverFields,requireDistricts,boardFilter,STATUSES} from '../workflow.js';
 import {webhookURL} from '../integration-security.js';
 
-const filters=z.object({branch_id:z.string().uuid().optional(),date:z.string().date().optional(),limit:z.coerce.number().int().min(1).max(100).optional(),cursor:z.string().max(600).optional(),phone:z.string().max(32).optional(),client_id:z.string().uuid().optional(),order_id:z.string().uuid().optional(),driver_id:z.string().uuid().optional(),stage:z.enum(['awaiting_acceptance','received','washing','drying','quality_check','packing','ready']).optional(),status:z.enum(['open','done']).optional(),label:z.string().regex(/^K-[1-9]\d{0,14}(?:-[1-9]\d{0,2})?$/i).optional()}).strict();
-const viewPermissions={bootstrap:'read',client:'clients',leads:'leads',calls:'calls',tasks:'tasks',dispatch:'dispatch',driver:'read',workshop:'workshop',scan:'read',payments:'read',admin:'staff'};
+const filters=z.object({branch_id:z.string().uuid().optional(),date:z.string().date().optional(),limit:z.coerce.number().int().min(1).max(100).optional(),cursor:z.string().max(600).optional(),phone:z.string().max(32).optional(),client_id:z.string().uuid().optional(),order_id:z.string().uuid().optional(),driver_id:z.string().uuid().optional(),status:z.enum(['open','done']).optional(),label:z.string().regex(/^K-[1-9]\d{0,14}(?:-[1-9]\d{0,2})?$/i).optional()}).strict();
+const viewPermissions={bootstrap:'read',client:'clients',leads:'leads',calls:'calls',tasks:'tasks',scan:'read',payments:'read',admin:'staff'};
 export function createWorkspaces(db,config={}){
  const router=Router();
+ router.get('/board',async(req,res)=>{
+  if(!can(req.user,'read'))throw new HttpError(403,'Недостаточно прав');
+  const raw=z.object({...boardFilter.shape,stage_filters:z.string().max(12000).optional()}).strict().parse(req.query),{stage_filters,...f}=raw;
+  if(stage_filters){let stages;try{stages=JSON.parse(stage_filters);}catch{throw new HttpError(400,'Неверные фильтры');}f.stages=z.partialRecord(z.enum(STATUSES),boardFilter).parse(stages);}
+  res.json(checked(await db.rpc('crm_board',{p_filters:f,p_user:req.user.id})));
+ });
+ router.get('/order-metrics',allow('reports'),async(req,res)=>{
+  const f=z.object({from:z.string().date(),to:z.string().date(),branch_id:z.string().uuid().optional()}).strict().parse(req.query);
+  res.json(checked(await db.rpc('crm_order_metrics',{p_filters:f,p_user:req.user.id})));
+ });
  router.get('/workspaces/:view',async(req,res)=>{
   const view=z.enum(Object.keys(viewPermissions)).parse(req.params.view);
   if(!can(req.user,viewPermissions[view]))throw new HttpError(403,'Недостаточно прав','FORBIDDEN');
@@ -27,7 +38,7 @@ export function createWorkspaces(db,config={}){
   if(!can(req.user,definition.permission))throw new HttpError(403,'Недостаточно прав','FORBIDDEN');
   const data=definition.schema.parse(req.body),key=z.string().uuid().parse(req.get('Idempotency-Key'));
   if(name==='photo.register'){
-   const item=checked(await db.from('order_items').select('id,order_id,order:orders(id,status,driver_id,deleted_at,branch_id,pickup_state)').eq('id',data.item_id).maybeSingle());
+   const item=checked(await db.from('order_items').select('id,order_id,order:orders(id,status,driver_id,pickup_driver_id,delivery_driver_id,deleted_at,branch_id,pickup_state)').eq('id',data.item_id).maybeSingle());
    if(!item?.order||!canReadOrder(req.user,item.order))throw new HttpError(403,'Нет доступа к этому изделию','FORBIDDEN');
    if(!new RegExp(`^${item.order_id}/${item.id}/[a-f0-9-]{36}\\.jpg$`).test(data.path))throw new HttpError(400,'Неверный путь файла');
    const exists=await db.storage.from(config.bucket||'carpet-photos').exists(data.path);if(!exists.data)throw new HttpError(409,'Фото ещё не загружено. Повторите отправку.','PHOTO_NOT_UPLOADED');
@@ -36,11 +47,11 @@ export function createWorkspaces(db,config={}){
   res.json(checked(await db.rpc(name.startsWith('admin.')?'crm_admin_command':'crm_command',{p_command:name,p_data:data,p_user:req.user.id,p_ip:req.ip,p_key:key})));
  });
  router.post('/staff/create',allow('staff'),async(req,res)=>{
-  const b=z.object({email:z.string().email().max(254),password:z.string().min(12).max(128),full_name:z.string().trim().min(1).max(120),role:z.enum(['admin','manager','operator','dispatcher','driver','workshop']),branch_id:z.string().uuid().nullable(),active:z.boolean().default(false)}).strict().parse(req.body);
+  const b=z.object({email:z.string().email().max(254),password:z.string().min(12).max(128),full_name:z.string().trim().min(1).max(120),role:z.enum(ROLES),branch_id:z.string().uuid().nullable(),active:z.boolean().default(false),...driverFields}).strict().superRefine(requireDistricts).parse(req.body);
   const key=z.string().uuid().parse(req.get('Idempotency-Key'));
   const {data,error}=await db.auth.admin.createUser({email:b.email,password:b.password,email_confirm:true,user_metadata:{full_name:b.full_name}});
   if(error)throw new HttpError(400,'Не удалось создать учётную запись. Проверьте почту и требования к паролю','AUTH_CREATE_FAILED');
-  const result=await db.rpc('crm_command',{p_command:'staff.update',p_data:{user_id:data.user.id,full_name:b.full_name,role:b.role,branch_id:b.branch_id,active:b.active},p_user:req.user.id,p_ip:req.ip,p_key:key});
+  const result=await db.rpc('crm_command',{p_command:'staff.update',p_data:{user_id:data.user.id,full_name:b.full_name,role:b.role,branch_id:b.branch_id,active:b.active,district_codes:b.district_codes,driver_color:b.driver_color},p_user:req.user.id,p_ip:req.ip,p_key:key});
   if(result.error)return res.status(409).json({error:'Учётная запись создана неактивной. Откройте сотрудников и настройте её профиль.',code:'PROFILE_SETUP_REQUIRED',user_id:data.user.id});
   res.status(201).json(result.data);
  });

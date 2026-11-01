@@ -1,19 +1,12 @@
-// Один процесс: запускается и в окружениях, запрещающих дочерний node test runner.
-import './api.test.js';
-import './lifecycle.test.js';
-import './ui.test.js';
-import './workspaces.test.js';
-import './offline.test.js';
-import './desks-ui.test.js';
-import './reports.test.js';
-import './reports-ui.test.js';
-import './operations.test.js';
+// One process, with real PostgreSQL RPCs and DOM/HTTP integration tests.
+import './workflow.test.js';
+import './cleanup.test.js';
+import './security-api.test.js';
+import './business.test.js';
+import './stock-cash.test.js';
 import './integrations.test.js';
-import './operations-ui.test.js';
 import './production.test.js';
-import './admin-management.test.js';
-import './admin-management-ui.test.js';
+import './offline.test.js';
 import './phone-input.test.js';
-import './booking.test.js';
-import './driver-intake.test.js';
-import './workshop-intake.test.js';
+import './kanban-ui.test.js';
+import './migrations.test.js';
