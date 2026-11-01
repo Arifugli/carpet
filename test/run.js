@@ -10,3 +10,4 @@ import './offline.test.js';
 import './phone-input.test.js';
 import './kanban-ui.test.js';
 import './migrations.test.js';
+import './release-maintenance.test.js';

@@ -1,6 +1,7 @@
 -- DESTRUCTIVE, ONCE ONLY. Stop API/worker writes; verify DB and private Storage backups first.
 -- Apply only after 0014 COMMIT and 0015 COMMIT. Never run from application startup.
 begin;
+select set_config('app.workflow_maintenance','allowed',true);
 lock table public.orders in access exclusive mode;
 do $$declare preview jsonb;counts jsonb;manifest jsonb;guard_record record;sequence_name text;begin
  if exists(select 1 from public.maintenance_cleanup_runs where key='workflow_v2_reset') then raise notice 'Cleanup already completed; no rows removed';return;end if;

@@ -1,4 +1,5 @@
 begin;
+select set_config('app.workflow_maintenance','allowed',true);
 -- Retired enum labels remain only for inactive historic profiles. Active access is CHECK-protected.
 create table public.role_reassignments(profile_id uuid primary key references public.profiles(id),previous_role text not null,was_active boolean not null,recorded_at timestamptz not null default clock_timestamp());
 insert into public.role_reassignments(profile_id,previous_role,was_active) select id,role::text,active from public.profiles where role::text not in ('operator','driver','warehouse','washer','packer','admin');
@@ -522,6 +523,7 @@ drop trigger if exists measurement_immutable on public.item_measurements;
 -- KERNEL
 create or replace function public.crm_require(p_user uuid,p_permission text,p_branch uuid default null) returns public.profiles language plpgsql security invoker set search_path=public,pg_temp as $$
 declare a public.profiles;begin
+ if exists(select 1 from public.settings where key='workflow_maintenance' and value=1) and current_setting('app.workflow_maintenance',true) is distinct from 'allowed' then raise exception using errcode='57P03',message='CRM обновляется. Повторите действие после завершения обновления.';end if;
  select * into a from public.profiles where id=p_user and active and role::text in ('operator','driver','warehouse','washer','packer','admin');
  if not found or not exists(select 1 from public.role_permissions where role=a.role::text and permissions ? p_permission) then raise exception using errcode='42501',message='Недостаточно прав';end if;
  if a.role::text<>'admin' and (a.branch_id is null or (p_branch is not null and a.branch_id is distinct from p_branch)) then raise exception using errcode='42501',message='Нет доступа к филиалу';end if;return a;

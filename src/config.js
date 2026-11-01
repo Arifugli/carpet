@@ -8,6 +8,7 @@ export const config = {
   serviceKey: need('SUPABASE_SERVICE_ROLE_KEY'),
   corsOrigins: (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean),
   bucket: 'carpet-photos',
+  legacyStorageCleanupConfirm:process.env.LEGACY_STORAGE_CLEANUP_CONFIRM,
   requestLogging:process.env.REQUEST_LOGGING!=='false',
   publicBaseUrl:(process.env.PUBLIC_BASE_URL||process.env.RENDER_EXTERNAL_URL)?.replace(/\/$/,''),
   bootstrapEmail:process.env.BOOTSTRAP_ADMIN_EMAIL,bootstrapPassword:process.env.BOOTSTRAP_ADMIN_PASSWORD,
