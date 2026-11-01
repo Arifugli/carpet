@@ -41,17 +41,16 @@ export function importRows({format,data,kind,branch_id}){
  let bytes;try{bytes=Buffer.from(data,'base64');}catch{throw invalid('Неверный base64');}if(bytes.length>2000000)throw invalid('Файл должен быть меньше 2 МБ');
  const table=format==='csv'?parseCsv(bytes.toString('utf8')):parseXlsx(new Uint8Array(bytes));if(table.length<2)throw invalid('Нужны заголовок и хотя бы одна строка');
  const [header,...rows]=table;if(new Set(header).size!==header.length)throw invalid('Повторяющиеся имена колонок');
- const allowed=kind==='clients'?['name','phone','address']:['name','phone','address','pickup_date','pickup_slot','source','comment','urgent','stains','pensioner','items','length_m','width_m','tariff'];
+ const allowed=kind==='clients'?['name','phone','address']:['name','phone','region_code','district_code','street','house','apartment','landmark','private_house','pickup_date','pickup_slot','source','comment','urgent','stains','pensioner','items'];
  if(header.some(h=>!allowed.includes(h)))throw invalid('Неизвестные колонки. Скачайте образец импорта');
  const client=z.object({name:z.string().max(120),phone:z.string().regex(/^\+998\d{9}$/),address:z.string().min(3).max(300)}).strict();
  return rows.map((row,index)=>{
   if(row.length>header.length)throw invalid(`Строка ${index+2}: больше значений, чем заголовков`);const value=Object.fromEntries(header.map((key,i)=>[key,row[i]??'']));
   try{
    if(kind==='clients')return client.parse(value);
-   const items=value.items?JSON.parse(value.items):[{length_m:Number(value.length_m),width_m:Number(value.width_m),tariff:value.tariff}];
-   for(const k of ['items','length_m','width_m','tariff'])delete value[k];for(const k of ['urgent','stains','pensioner']){if(value[k]!=null&&!['','0','1','true','false'].includes(value[k]))throw Error();value[k]=['1','true'].includes(value[k]);}
-   for(const k of ['source','pickup_slot','comment'])if(value[k]==='')delete value[k];return orderInput.parse({...value,branch_id,items});
-  }catch{throw invalid(`Строка ${index+2}: проверьте телефон +998, дату YYYY-MM-DD, размеры, тариф и обязательные поля`);}
+   const items=JSON.parse(value.items);delete value.items;for(const k of ['urgent','stains','pensioner','private_house']){if(value[k]!=null&&!['','0','1','true','false'].includes(value[k]))throw Error();value[k]=['1','true'].includes(value[k]);}
+   for(const k of ['source','pickup_slot','comment','pickup_date'])if(value[k]==='')delete value[k];return orderInput.parse({...value,branch_id,items});
+  }catch{throw invalid(`Строка ${index+2}: проверьте ФИО, телефон +998, область, район, адрес и изделия без размеров`);}
  });
 }
 export const csvCell=v=>{const raw=String(v??''),safe=/^[\s]*[=+\-@]/.test(raw)?"'"+raw:raw;return '"'+safe.replaceAll('"','""')+'"';};

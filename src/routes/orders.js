@@ -1,19 +1,19 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { allow,canReadOrder,maskPhone,WORKSHOP_STATUSES } from '../permissions.js';
+import { allow,canReadOrder,maskPhone } from '../permissions.js';
 import { checked,HttpError,orderRef,byRef,withCode,parseCursor,applyCursor,page } from '../http.js';
-import {bookingInput as orderInput,quoteInput} from '../booking.js';
+import {STATUSES,PRODUCTION} from '../workflow.js';
+import {bookingInput as orderInput,quoteInput,measurementInput} from '../booking.js';
 export {orderInput};
-const STATUSES=['new','pickup_assigned','received','washing','drying','ready','delivering','delivered','cancelled'];
 const money=z.number().int().min(0).max(999999999999);
 const reason=z.string().trim().min(1,'Укажите причину').max(500);
-const LIST='id,number,status,branch_id,pricing_state,measurement_mode,pickup_state,production_stage,pickup_date,pickup_slot,address,total,urgent,driver_id,created_at,delete_requested_at,delete_requested_by,delete_request_reason,cancel_reason_code,paid_amount,washing_started_at,client:clients(name,phone),items:order_items(id)';
+const LIST='id,number,status,branch_id,pricing_state,measurement_mode,pickup_state,production_stage,pickup_date,pickup_slot,address,total,urgent,driver_id,pickup_driver_id,delivery_driver_id,created_at,delete_requested_at,delete_requested_by,delete_request_reason,cancel_reason_code,paid_amount,washing_started_at,client:clients(name,phone),items:order_items(id)';
 const DETAIL='*,client:clients(*),driver:profiles!driver_id(id,full_name),items:order_items(*,photos:order_photos(*)),history:status_history(status,note,created_at,changed_by)';
 const filters=z.object({limit:z.coerce.number().int().min(1).max(100).default(50),cursor:z.string().max(500).optional()});
 const trashFilters=filters.extend({deleted_by:z.string().uuid().optional(),from:z.string().datetime({offset:true}).optional(),to:z.string().datetime({offset:true}).optional(),reason:z.string().trim().max(500).optional()}).strict()
  .refine(v=>!v.from||!v.to||Date.parse(v.from)<=Date.parse(v.to),'Начало периода должно быть раньше окончания');
 const redact=(o,user)=>{
- if (user.role==='workshop') {
+ if (PRODUCTION[user.role]) {
   o={...o,client:o.client?{name:o.client.name,phone:maskPhone(o.client.phone)}:null};
   delete o.track_token; delete o.delete_snapshot;
  }
@@ -25,7 +25,7 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
  router.use(allow('read'));
  const resolve=async(req,{trash=false}={})=>{
   const ref=orderRef.parse(req.params.id);
-  let q=byRef(db.from('orders').select('id,status,driver_id,deleted_at,branch_id,pickup_state'),ref);
+  let q=byRef(db.from('orders').select('id,status,driver_id,pickup_driver_id,delivery_driver_id,deleted_at,branch_id,pickup_state'),ref);
   q=trash?q.not('deleted_at','is',null):q.is('deleted_at',null);
   const o=checked(await q.maybeSingle());
   if (!o) throw new HttpError(404,'Заказ не найден','ORDER_NOT_FOUND');
@@ -44,15 +44,15 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
  });
  router.get('/orders',async(req,res)=>{
   const b=filters.extend({status:z.enum(STATUSES).optional(),q:z.string().trim().max(120).optional(),date:z.string().date().optional(),branch_id:z.string().uuid().optional(),deletion_requested:z.enum(['true']).optional()}).strict().parse(req.query);
-  if (b.deletion_requested&&!['admin','manager'].includes(req.user.role)) throw new HttpError(403,'Недостаточно прав','FORBIDDEN');
+  if (b.deletion_requested&&req.user.role!=='admin') throw new HttpError(403,'Недостаточно прав','FORBIDDEN');
   let q=db.from('orders').select(LIST).is('deleted_at',null).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(b.limit+1);
-  if(!['admin','manager'].includes(req.user.role))q=q.eq('branch_id',req.user.branch_id);
+  if(req.user.role!=='admin')q=q.eq('branch_id',req.user.branch_id);
   else if(b.branch_id)q=q.eq('branch_id',b.branch_id);
   if (b.status) q=q.eq('status',b.status);
   if (b.date) q=q.eq('pickup_date',b.date);
   if (b.deletion_requested) q=q.not('delete_requested_at','is',null);
-  if (req.user.role==='driver') q=q.eq('driver_id',req.user.id);
-  if (req.user.role==='workshop') q=q.or(`status.in.(${WORKSHOP_STATUSES.join(',')}),and(status.eq.pickup_assigned,pickup_state.eq.handed_over)`);
+  if (req.user.role==='driver')q=q.or(`status.in.(new,ready_for_delivery),and(status.eq.pickup_planned,pickup_driver_id.eq.${req.user.id}),and(status.in.(in_transit,delivered,postponed),delivery_driver_id.eq.${req.user.id})`);
+  if(PRODUCTION[req.user.role])q=q.eq('status',PRODUCTION[req.user.role]);
   if (b.q) {
    const n=b.q.replace(/^k-/i,'');
    if (/^\d{1,15}$/.test(n)) q=q.eq('number',n);
@@ -68,7 +68,6 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
  });
  router.post('/orders',allow('create'),async(req,res)=>{
   const body=orderInput.parse(req.body);
-  if(req.user.role==='operator'&&body.items.some(i=>i.length_m!=null||i.width_m!=null))throw new HttpError(403,'Замеры выполняют водитель и цех','FORBIDDEN');
   const key=z.string().uuid('Требуется UUID в заголовке Idempotency-Key').parse(req.get('Idempotency-Key'));
   const id=checked(await db.rpc('create_order_audited',{p:body,p_user:req.user.id,p_ip:req.ip,p_key:key}));
   const o=checked(await db.from('orders').select(DETAIL).eq('id',id).is('deleted_at',null).maybeSingle());
@@ -122,7 +121,6 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
   if (!o) throw new HttpError(404,'Заказ не найден','ORDER_NOT_FOUND');
   if (!canReadOrder(req.user,o)) throw new HttpError(403,'Недостаточно прав для этого заказа','FORBIDDEN');
   o.items.forEach(i=>i.photos.forEach(p=>{delete p.url;delete p.storage_path;}));
-  if(o.measurement_mode==='verified'&&['workshop','admin'].includes(req.user.role))o.workshop_intake=checked(await db.rpc('crm_workshop_intake',{oid:o.id,u:req.user.id}));
   o.history.sort((a,b)=>a.created_at.localeCompare(b.created_at));
   res.json(redact(o,req.user));
  });
@@ -144,14 +142,9 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
   z.object({}).strict().parse(req.body??{}); const o=await resolve(req,{trash:true});
   res.json(await rpc(req,'restore_order',{p_order:o.id}));
  });
- router.patch('/orders/:id/driver',allow('assign'),async(req,res)=>{
-  const b=z.object({driver_id:z.string().uuid().nullable()}).strict().parse(req.body),o=await resolve(req);
-  res.json(await rpc(req,'assign_order_driver',{p_order:o.id,p_driver:b.driver_id}));
- });
- router.post('/orders/:id/status',allow('status'),async(req,res)=>{
-  const b=z.object({status:z.enum(STATUSES.filter(s=>s!=='cancelled')),note:z.string().max(300).optional()}).strict().parse(req.body),o=await resolve(req);
-  const status=checked(await db.rpc('change_order_status_audited',{p_order:o.id,p_status:b.status,p_note:b.note??null,p_user:req.user.id,p_ip:req.ip}));
-  res.json({ok:true,status});
+ router.post('/orders/:id/pickup-quote',allow('pickup'),async(req,res)=>{
+  const b=z.object({items:z.array(measurementInput).min(1).max(30)}).strict().parse(req.body),o=await resolve(req);
+  res.json(checked(await db.rpc('crm_pickup_preview',{oid:o.id,items:b.items,u:req.user.id})));
  });
  return router;
 }

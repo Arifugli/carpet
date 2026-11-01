@@ -1,8 +1,68 @@
 {
- "admin":["read","create","quote","assign","status","cancel","delete","restore","trash","audit","photos","tariffs","clients","leads","calls","tasks","dispatch","payments","workshop","staff","catalogs","reports","exports","integrations","inventory","payroll","complaints","discounts","branches"],
- "manager":["read","quote","cancel","delete","restore","trash","audit","reports","exports","payroll"],
- "operator":["read","create","quote","assign","status","cancel","requestDeletion","photos","clients","leads","calls","tasks","complaints"],
- "dispatcher":["read","assign","status","dispatch","tasks","calls","photos","payments"],
- "driver":["read","status","photos","tasks","payments"],
- "workshop":["read","status","photos","workshop","inventory"]
+  "admin": [
+    "read",
+    "create",
+    "quote",
+    "cancel",
+    "delete",
+    "restore",
+    "trash",
+    "audit",
+    "photos",
+    "tariffs",
+    "clients",
+    "leads",
+    "calls",
+    "tasks",
+    "payments",
+    "staff",
+    "catalogs",
+    "reports",
+    "exports",
+    "integrations",
+    "inventory",
+    "payroll",
+    "complaints",
+    "discounts",
+    "branches",
+    "admin",
+    "defects"
+  ],
+  "operator": [
+    "read",
+    "create",
+    "quote",
+    "cancel",
+    "requestDeletion",
+    "clients",
+    "leads",
+    "calls",
+    "tasks",
+    "complaints"
+  ],
+  "driver": [
+    "read",
+    "photos",
+    "payments",
+    "tasks",
+    "pickup",
+    "delivery"
+  ],
+  "warehouse": [
+    "read",
+    "warehouse",
+    "measure",
+    "defects"
+  ],
+  "washer": [
+    "read",
+    "wash",
+    "defects"
+  ],
+  "packer": [
+    "read",
+    "pack",
+    "photos",
+    "defects"
+  ]
 }

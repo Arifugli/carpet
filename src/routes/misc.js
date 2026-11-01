@@ -35,13 +35,9 @@ export function createStaffApi(db,{bucket='carpet-photos'}={}) {
   const client=checked(await db.from('clients').select('*').eq('phone_key',k).maybeSingle());
   if (!client) return res.json({client:null,orders:[]});
   let query=db.from('orders').select('id,number,status,total,created_at').eq('client_id',client.id).is('deleted_at',null).order('created_at',{ascending:false}).limit(5);
-  if(!['admin','manager'].includes(req.user.role))query=query.eq('branch_id',req.user.branch_id);
+  if(req.user.role!=='admin')query=query.eq('branch_id',req.user.branch_id);
   const orders=checked(await query);
   res.json({client,orders:orders.map(withCode)});
- });
- router.get('/drivers',allow('assign'),async(req,res)=>{
-  z.object({}).strict().parse(req.query);
-  res.json(checked(await db.from('profiles').select('id,full_name,phone').eq('role','driver').eq('active',true).order('full_name')));
  });
  router.get('/staff',allow('trash'),async(req,res)=>{
   z.object({}).strict().parse(req.query);
@@ -59,13 +55,14 @@ export function createStaffApi(db,{bucket='carpet-photos'}={}) {
  });
  const ownedItem=async req=>{
   const id=z.string().uuid().parse(req.params.itemId);
-  const it=checked(await db.from('order_items').select('id,order_id,order:orders(id,driver_id,status,deleted_at,branch_id,pickup_state)').eq('id',id).maybeSingle());
+  const it=checked(await db.from('order_items').select('id,order_id,order:orders(id,driver_id,pickup_driver_id,delivery_driver_id,status,deleted_at,branch_id,pickup_state,packing_received_at)').eq('id',id).maybeSingle());
   if (!it||!it.order||it.order.deleted_at) throw new HttpError(404,'Ковёр не найден','ITEM_NOT_FOUND');
   if (!canReadOrder(req.user,it.order)) throw new HttpError(403,'Недостаточно прав для этого заказа','FORBIDDEN');
   return it;
  };
  router.post('/items/:itemId/photo-upload',allow('photos'),async(req,res)=>{
   const b=z.object({upload_id:z.string().uuid().optional()}).strict().parse(req.body??{}); const it=await ownedItem(req);
+  if(!(req.user.role==='admin'||(req.user.role==='driver'&&it.order.status==='pickup_planned'&&it.order.pickup_driver_id===req.user.id&&it.order.pickup_state==='pending')||(req.user.role==='packer'&&it.order.status==='packing'&&it.order.packing_received_at)))throw new HttpError(403,'Фото загружаются при заборе или упаковке','FORBIDDEN');
   const path=`${it.order_id}/${it.id}/${b.upload_id||crypto.randomUUID()}.jpg`;
   const data=checked(await db.storage.from(bucket).createSignedUploadUrl(path));
   res.json({path,signedUrl:data.signedUrl,token:data.token});

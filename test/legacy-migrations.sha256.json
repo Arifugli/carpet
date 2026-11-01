@@ -1,0 +1,15 @@
+{
+  "0001_init.sql": "8297f7da1b995eb6df95e98ea5c392bb5f8fbc62cd9ec0aac34f3893d2484c67",
+  "0002_manager_role.sql": "1a132c319913c4a47e8660a4d5f0e09e3543d09b28a75e5bf6f51263586fc5c8",
+  "0003_order_lifecycle.sql": "5c5dcb79b99d97ddffedb2aab738289b289af45bbaf10b88d4576d7e2f096066",
+  "0004_dispatcher_role.sql": "e5e7a860cbb8f30c51d5ef3e231f3af641213095cd9b4b92bc55794c31add360",
+  "0005_workspaces.sql": "b708e6fe42753a2b65e094a22fa120e070220375a29fff06b39175ce11f98c90",
+  "0006_reports.sql": "611dc7b9ed747561aa65436e33d0d4457fd4dd19bf528d48e054459e28ec2ee0",
+  "0007_business_operations.sql": "a60beea30105b0f604c8931442606b151b96138d6cb1a98d72cffe4c91faa058",
+  "0008_service_privileges.sql": "9e9a284985f4fe068d4eb585a044fe3c261e7dab7bee63e72adb9a9e13da6ee0",
+  "0009_admin_bootstrap.sql": "7df3de959bf70f17551e2547a60cc86f151f0a9eedc747b503f70577e2a44e98",
+  "0010_admin_management.sql": "bbe460374eb944764ac7862dcb69d0241d1651d2d7b6b04226aa045728ecb35a",
+  "0011_booking_measurements.sql": "5441aa45e50ed44256f7e3c0f339d89225118d1f5055235683191209e3b26adf",
+  "0012_driver_intake.sql": "9ea1b863fbd12b84342bd1fb40fa1233e9bac4298991536149813edecc0e3b7c",
+  "0013_workshop_intake.sql": "68659022a439eebf4d1fb8341498afc7696f9b2c81568efadd2c5a244c3d078d"
+}

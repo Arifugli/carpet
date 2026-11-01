@@ -14,7 +14,7 @@ const uuid=z.string().uuid(),key=req=>uuid.parse(req.get('Idempotency-Key'));
 export function createOperations(db,config={}){
  const r=Router();
  r.get('/payment-intents/:id/link',allow('read'),async(req,res)=>{
-  if(req.user.role==='workshop')throw new HttpError(403,'Нет доступа к оплате','FORBIDDEN');
+  if(['warehouse','washer','packer'].includes(req.user.role))throw new HttpError(403,'Нет доступа к оплате','FORBIDDEN');
   const id=uuid.parse(req.params.id);z.object({}).strict().parse(req.query);const intent=checked(await db.from('payment_intents').select('id,order_id,provider,amount,state,expires_at').eq('id',id).maybeSingle());if(!intent)throw new HttpError(404,'Счёт не найден');
   checked(await db.rpc('crm_order',{p_order:intent.order_id,p_user:req.user.id}));if(![0,1].includes(intent.state)||Date.parse(intent.expires_at)<=Date.now())throw new HttpError(409,'Счёт закрыт или истёк');
   let url;if(intent.provider==='payme'&&config.paymeMerchantId)url='https://checkout.paycom.uz/'+Buffer.from(`m=${config.paymeMerchantId};ac.intent_id=${intent.id};a=${Number(intent.amount)*100};l=ru`).toString('base64');
@@ -42,8 +42,8 @@ export function createOperations(db,config={}){
  });
  r.get('/imports/:kind/template',allow('integrations'),async(req,res)=>{
   const kind=z.enum(['clients','orders']).parse(req.params.kind);z.object({}).strict().parse(req.query);
-  const columns=['name','phone','address',...(kind==='orders'?['pickup_date','length_m','width_m','tariff']:[])];
-  const row={name:'Образец — удалите строку',phone:'+998901234567',address:'Ташкент, Навои 1',pickup_date:'2027-01-01',length_m:3,width_m:2,tariff:'wool'};
+  const columns=kind==='clients'?['name','phone','address']:['name','phone','region_code','district_code','street','house','private_house','source','items'];
+  const row={name:'Образец — удалите строку',phone:'+998901234567',address:'Фергана, Навои 1',region_code:'fergana',district_code:'fergana_city',street:'Навои',house:'1',private_house:'true',source:'call_in',items:[{tariff:'carpet',quantity:1}]};
   // Телефон в образце оставлен строкой; обычная выгрузка защищает CSV от формул.
   res.type('text/csv').attachment(`template-${kind}.csv`).send(exportCsv([row],columns).replace("'+998901234567",'+998901234567'));
  });
@@ -58,7 +58,7 @@ export function createOperations(db,config={}){
  });
  r.get('/orders/:id/print/:kind',async(req,res)=>{
   const id=uuid.parse(req.params.id),kind=z.enum(['labels','receipt','act']).parse(req.params.kind);z.object({}).strict().parse(req.query);
-  const o=checked(await db.rpc('crm_order',{p_order:id,p_user:req.user.id,p_permission:'read'}));if(req.user.role==='workshop'&&kind!=='labels')throw new HttpError(403,'Нет доступа к финансовым документам','FORBIDDEN');
+  const o=checked(await db.rpc('crm_order',{p_order:id,p_user:req.user.id,p_permission:'read'}));if(['warehouse','washer','packer'].includes(req.user.role)&&kind!=='labels')throw new HttpError(403,'Нет доступа к финансовым документам','FORBIDDEN');
   if(kind!=='labels'&&o.pricing_state==='awaiting_measurements')throw new HttpError(409,'Стоимость и документы будут доступны после замера ковров в цехе','MEASUREMENTS_PENDING');
   const items=checked(await db.from('order_items').select('*').eq('order_id',id).order('seq'));
   let body;
