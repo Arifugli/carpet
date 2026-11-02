@@ -1,4 +1,4 @@
-import {t,money,date} from './i18n.js';
+import {t,money,date,localizedName} from './i18n.js';
 (()=>{
  const $=s=>document.querySelector(s),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const ui=()=>window.crmUI,has=p=>ui()?.has(p),user=()=>ui()?.user();
@@ -7,13 +7,13 @@ import {t,money,date} from './i18n.js';
  const localDate=(value=new Date())=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Tashkent',year:'numeric',month:'2-digit',day:'2-digit'}).format(value);
  const localTime=(value=new Date())=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Tashkent',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(value).replace(' ','T');
  const staffName=id=>state.meta.staff.find(s=>s.id===id)?.full_name||t('unknown');
- const options=kind=>state.meta.catalogs.filter(c=>c.kind===kind&&c.active&&(!state.filters.branch_id||c.branch_id===state.filters.branch_id)).map(c=>[c.code,c.name_ru]);
+ const options=kind=>state.meta.catalogs.filter(c=>c.kind===kind&&c.active&&(!state.filters.branch_id||c.branch_id===state.filters.branch_id)).map(c=>[c.code,localizedName(c)]);
  let controlId=0;
  const select=(name,label,items,value='',required=false)=>{const id=`desk-${++controlId}`;return `<div class="field"><label for="${id}">${esc(t(label))}</label><select id="${id}" name="${name}" ${required?'required':''}><option value="">${esc(t('noData'))}</option>${items.map(([id,name])=>`<option value="${esc(id)}" ${String(id)===String(value)?'selected':''}>${esc(name)}</option>`).join('')}</select></div>`;};
  const field=(name,label,type='text',value='',extra='')=>{const id=`desk-${++controlId}`;return `<div class="field"><label for="${id}">${esc(t(label))}</label><input id="${id}" name="${name}" type="${type}" value="${esc(value)}" ${type==='tel'?'inputmode="tel" autocomplete="tel" placeholder="90 123 45 67" maxlength="32"':''} ${extra}>${type==='tel'?`<small>${esc(t('phoneHint'))}</small>`:''}</div>`;};
  const choices={outcome:['new','callback','no_result','refused'],direction:['in','out'],kind:['pickup','delivery'],method:['cash','terminal','bank'],role:['operator','driver','warehouse','washer','packer','admin'],channel:['sms','telegram'],locale:['ru','uz'],catalogKind:['source','zone','slot','defect','failure','tag','cancel_reason'],setting:['urgent_pct','stains_pct','pensioner_pct','delivery_fee','free_delivery_from']};
  const enumOptions=key=>choices[key].map(v=>Array.isArray(v)?v:[v,t(v)]);
- choices.unit=[['m2','м²'],['piece','шт.']];
+ const unitChoices=()=>[['m2',t('m2')],['piece',t('piece')]];
  const price=o=>o.pricing_state==='awaiting_measurements'?esc(t('priceAfterMeasurement')):money(o.total);
  const forms={
   'order.measure':{title:'measureAndPrice',fields:[]},
@@ -57,18 +57,18 @@ import {t,money,date} from './i18n.js';
   catch(e){if(queueable&&(e.network||!navigator.onLine)){try{await window.CRMOffline.enqueue(user().id,name,data,{id:key});ui().toast(t('queued'));return {queued:true};}catch{throw new Error(t('saveOfflineUnavailable'));}}throw e;}
  }
  function formOptions(type,prefill){
-  if(type==='regions')return (state.meta.regions||[]).map(r=>[r.code,r.name_ru]);
-  if(type==='districts')return (state.meta.districts||[]).filter(r=>r.region_code===(prefill.region_code||'fergana')).map(r=>[r.code,r.name_ru]);
+  if(type==='regions')return (state.meta.regions||[]).map(r=>[r.code,localizedName(r)]);
+  if(type==='districts')return (state.meta.districts||[]).filter(r=>r.region_code===(prefill.region_code||'fergana')).map(r=>[r.code,localizedName(r)]);
   if(type==='branches')return state.meta.branches.filter(b=>b.active||b.id===prefill.branch_id).map(b=>[b.id,b.name]);
   if(type==='staff')return state.meta.staff.filter(s=>s.active).map(s=>[s.id,s.full_name]);
   if(type==='drivers')return state.meta.staff.filter(s=>s.active&&s.role==='driver').map(s=>[s.id,s.full_name]);
   if(type==='orders')return state.orders.map(o=>[o.id,`${o.code} · ${o.client?.name||''} · ${t(o.status)}`]);
   if(type==='items')return (prefill.items||[]).map(i=>[i.id,`${t('product')} ${i.seq} · ${state.meta.tariffs?.find(t=>t.code===i.tariff_code)?.name||i.tariff_code||''}`]);
-  if(type==='reasons')return (window.crmReasons||[]).map(r=>[r.code,r.name_ru]);
+  if(type==='reasons')return (window.crmReasons||[]).map(r=>[r.code,localizedName(r)]);
   if(type==='callOutcome')return ['ringing','answered','missed','no_result'].map(v=>[v,t(v)]);
   if(type==='photoKind')return [['intake',t('intake')],['ready',t('readyPhoto')]];
   if(['source','zone','slot','defect','failure'].includes(type))return options(type);
-  return choices[type]?enumOptions(type):null;
+  return type==='unit'?unitChoices():choices[type]?enumOptions(type):null;
  }
  async function openForm(name,prefill={}){
   prefill=Object.fromEntries(Object.entries(prefill).filter(([,v])=>v!==undefined));
@@ -79,7 +79,7 @@ import {t,money,date} from './i18n.js';
   state.form={name,prefill,key:crypto.randomUUID()};
   $('#action').innerHTML=`<div class="row dialog-head"><h2>${esc(t(definition.title))}</h2>${button('close','close')}</div>${prefill.adminLabel?`<p><strong>${esc(prefill.adminLabel)}</strong></p>`:''}${name==='admin.archive'?`<p class="notice">${esc(t('adminArchiveHint'))}</p>`:''}${name==='tariff.schedule'&&prefill.adminLabel?`<p class="notice">${esc(t('tariffVersionHint'))}</p>`:''}<form data-desk-form="${name}">${definition.fields.map(([key,label,type='text',required=false])=>{
    const value=prefill[key]??prefill.config?.[key]??'';const opts=formOptions(type,prefill);
-   if(type==='districtMulti')return `<div data-driver-field><label>${esc(t(label))}<select name="district_codes" multiple size="6">${(state.meta.districts||[]).map(d=>`<option value="${esc(d.code)}" ${(prefill.district_codes||[]).includes(d.code)?'selected':''}>${esc(d.name_ru)}</option>`).join('')}</select></label><small>${esc(t('driverDistrictHint'))}</small></div>`;
+   if(type==='districtMulti')return `<div data-driver-field><label>${esc(t(label))}<select name="district_codes" multiple size="6">${(state.meta.districts||[]).map(d=>`<option value="${esc(d.code)}" ${(prefill.district_codes||[]).includes(d.code)?'selected':''}>${esc(localizedName(d))}</option>`).join('')}</select></label><small>${esc(t('driverDistrictHint'))}</small></div>`;
    if(type==='hidden')return `<input type="hidden" name="${key}" value="${esc(value)}">`;
    if(opts)return select(key,label,opts,value,required);
    if(type==='textarea')return `<div class="field"><label for="desk-${key}">${esc(t(label))}</label><textarea id="desk-${key}" name="${key}" maxlength="1500" ${required?'required':''}>${esc(value)}</textarea></div>`;
@@ -129,7 +129,7 @@ import {t,money,date} from './i18n.js';
  function districtOptions(form,value=''){
   const region=form.elements.region_code?.value,el=form.elements.district_code;if(!el)return;
   const districts=(state.meta.districts||[]).filter(d=>d.region_code===region);
-  el.innerHTML=`<option value="">${esc(t(districts.length?'chooseDistrict':'districtsLater'))}</option>`+districts.map(d=>`<option value="${esc(d.code)}">${esc(d.name_ru)}</option>`).join('');
+  el.innerHTML=`<option value="">${esc(t(districts.length?'chooseDistrict':'districtsLater'))}</option>`+districts.map(d=>`<option value="${esc(d.code)}">${esc(localizedName(d))}</option>`).join('');
   el.disabled=!districts.length;el.required=true;el.value=districts.some(d=>d.code===value)?value:'';
  }
  function apartmentState(form){const apartment=form.elements.apartment;if(!apartment)return;apartment.required=!form.elements.private_house?.checked;apartment.disabled=!!form.elements.private_house?.checked;if(apartment.disabled)apartment.value='';}
@@ -137,7 +137,7 @@ import {t,money,date} from './i18n.js';
   if(!form)return;for(const key of ['region_code','street','house','apartment','landmark'])if(data[key]!=null&&form.elements[key])form.elements[key].value=data[key];
   if(form.elements.private_house)form.elements.private_house.checked=!!data.private_house;districtOptions(form,data.district_code);apartmentState(form);
  }
- function addressFields(){return `<div data-address-fields><div class="two">${select('region_code','region',(state.meta.regions||[]).map(r=>[r.code,r.name_ru]),'fergana',true)}${select('district_code','district',(state.meta.districts||[]).filter(d=>d.region_code==='fergana').map(d=>[d.code,d.name_ru]),'',true)}</div>${field('street','street','text','','required maxlength="150" autocomplete="address-line1"')}<div class="two">${field('house','house','text','','required maxlength="30"')}${field('apartment','apartment','text','','required maxlength="30"')}</div><label class="check"><input type="checkbox" name="private_house">${esc(t('privateHouse'))}</label>${field('landmark','landmark','text','','maxlength="250"')}</div>`;}
+ function addressFields(){return `<div data-address-fields><div class="two">${select('region_code','region',(state.meta.regions||[]).map(r=>[r.code,localizedName(r)]),'fergana',true)}${select('district_code','district',(state.meta.districts||[]).filter(d=>d.region_code==='fergana').map(d=>[d.code,localizedName(d)]),'',true)}</div>${field('street','street','text','','required maxlength="150" autocomplete="address-line1"')}<div class="two">${field('house','house','text','','required maxlength="30"')}${field('apartment','apartment','text','','required maxlength="30"')}</div><label class="check"><input type="checkbox" name="private_house">${esc(t('privateHouse'))}</label>${field('landmark','landmark','text','','maxlength="250"')}</div>`;}
  function photoGallery({order_id,client_id,branch_id,client=false}){
   if(!order_id&&!client_id)return '';
   const url=order_id?`/orders/${order_id}/photos`:`/clients/${client_id}/photos${branch_id?'?branch_id='+encodeURIComponent(branch_id):''}`;
@@ -175,7 +175,7 @@ import {t,money,date} from './i18n.js';
   $('#desk-list').innerHTML=data.client?`<section class="box"><h2>${esc(data.client.name)}</h2><p>${esc(data.client.phone)}</p><h3>${esc(t('addresses'))}</h3><ul>${data.addresses.map(a=>`<li>${esc(a.label)} ${esc(a.address)}</li>`).join('')}</ul>${button('newAddress','address')}${photoGallery({client_id:data.client.id,branch_id:state.filters.branch_id,client:true})}<h3>${esc(t('orders'))}</h3><div class="cards">${data.orders.map(o=>`<article class="card"><strong>${esc(o.code)}</strong><span class="pill">${esc(t(o.status))}</span><p>${price(o)}</p><p>${esc(o.address)}</p>${button('details','order',`data-order="${o.id}"`)}${button('repeatOrder','repeat',`data-id="${o.id}"`)}</article>`).join('')}</div></section>`:`<p class="muted">${esc(t('clientNotFound'))}</p>`;
  }
  const adminRows=()=>({staff:state.admin.staff.map(r=>({...r,entity:'staff'})),branches:state.admin.branches.map(r=>({...r,entity:'branch'})),tariffs:state.admin.tariffs.map(r=>({...r,entity:'tariff'})),catalogs:[...state.admin.catalogs.map(r=>({...r,entity:'catalog'})),...state.admin.reasons.map(r=>({...r,entity:'reason'}))],templates:state.admin.templates.map(r=>({...r,entity:'template'}))})[state.adminTab];
- const adminLabel=r=>r.full_name||r.name||r.name_ru||r.code;
+ const adminLabel=r=>r.full_name||localizedName(r)||r.code;
  function renderAdminRows(){
   const rows=adminRows().filter(r=>state.showArchived||!r.archived_at),branchName=id=>state.admin.branches.find(b=>b.id===id)?.name||t('noData');
   $('#desk-list').innerHTML=`<div class="admin-tabs" role="group" aria-label="${esc(t('adminSections'))}">${['staff','branches','tariffs','catalogs','templates'].map(tab=>button(tab,'admin-tab',`data-tab="${tab}" aria-pressed="${state.adminTab===tab}"`)).join('')}</div><label class="check"><input type="checkbox" data-admin-archived ${state.showArchived?'checked':''}>${esc(t('showArchived'))}</label><p class="muted">${esc(t('adminArchiveSummary'))}</p><div class="cards">${rows.map((r,index)=>`<article class="card" data-admin-entity="${r.entity}" data-admin-id="${esc(r.id||r.code)}"><div class="row"><h2>${esc(adminLabel(r))}</h2><span class="pill">${esc(t(r.archived_at?'archived':r.active?'active':'inactive'))}</span></div>${r.role?`<p>${esc(t(['operator','driver','warehouse','washer','packer','admin'].includes(r.role)?r.role:'retiredRole'))}</p>`:''}${r.code?`<small>${esc(r.code)}${r.kind?` · ${esc(t(r.kind))}`:''}</small>`:''}${r.branch_id?`<small>${esc(branchName(r.branch_id))}</small>`:''}${r.price_per_m2!=null?`<strong>${money(r.price_per_m2)} / ${esc(t(r.unit==='piece'?'piece':'m2'))}</strong><small>${esc(t('effective_at'))}: ${esc(date(r.effective_at))}</small>`:''}${r.body?`<p>${esc(r.body)}</p><small>${esc(t(r.channel))} · ${esc(t(r.locale))}</small>`:''}${r.address?`<p>${esc(r.address)}</p>`:''}<div class="actions">${r.archived_at?button('restoreRecord','admin-restore',`data-index="${index}"`):`${button('editRecord','admin-edit',`data-index="${index}"`)}${r.entity==='staff'?button('accessLink','access-link',`data-id="${r.id}"`):''}${button('archiveRecord','admin-archive',`data-index="${index}" class="danger" ${r.entity==='staff'&&r.id===user().id?'disabled':''}`)}`}</div></article>`).join('')||`<div class="box empty">${esc(t('empty'))}</div>`}</div>${state.adminTab==='tariffs'?`<details class="box"><summary>${esc(t('tariffVersions'))}</summary>${state.admin.tariff_versions.map(v=>`<p>${esc(v.name)} · ${esc(branchName(v.branch_id))} · ${money(v.price_per_m2)} · ${esc(date(v.effective_at))}</p>`).join('')}</details>`:''}${state.adminTab==='branches'?`<details class="box"><summary>${esc(t('settingVersions'))}</summary>${state.admin.setting_versions.map(v=>`<p>${esc(t(v.key))} · ${esc(v.value)} · ${esc(date(v.effective_at))}</p>`).join('')}</details>`:''}`;
