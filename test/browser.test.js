@@ -66,3 +66,35 @@ test('Chromium Dashboard: 55 заказов, страницы, боковая к
  }finally{await browser?.close();await f.close();}
 });
 
+import {advance} from './helpers/database.js';
+
+test('Chromium: доставленный заказ на главной и ровная сетка на 1440, 1024, 768 и 390 px',async()=>{
+ const f=await workflowServer();let browser;try{
+  await advance(f.sql,f.orderId);await f.db.rpc('crm_ready',{});
+  browser=await chromium.launch({headless:true,...(process.env.CRM_BROWSER_CHANNEL?{channel:process.env.CRM_BROWSER_CHANNEL}:{})});
+  const context=await browser.newContext({viewport:{width:1440,height:900}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(f.url);await page.locator('[name=email]').fill('admin@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table] .delivered').waitFor();
+  const dir=fileURLToPath(new URL('../test-artifacts/',import.meta.url));await mkdir(dir,{recursive:true});
+  for(const width of [1440,1024,768,390]){
+   await page.setViewportSize({width,height:900});
+   const metrics=await page.evaluate(()=>{const controls=[...document.querySelectorAll('[data-dashboard-filter]>label input,[data-dashboard-filter]>label select,.filter-actions button')].map(e=>({top:e.getBoundingClientRect().top,height:e.getBoundingClientRect().height}));return{controls,mainTop:document.querySelector('#main').getBoundingClientRect().top,overflow:document.documentElement.scrollWidth>innerWidth};});
+   assert.equal(metrics.overflow,false,'overflow '+width);assert.ok(metrics.controls.every(c=>Math.abs(c.height-44)<1),'control heights '+width);
+   if(width===1440){assert.ok(metrics.mainTop<=30,'main starts at the top');assert.ok(Math.max(...metrics.controls.map(c=>c.top))-Math.min(...metrics.controls.map(c=>c.top))<1,'same baseline');}
+   await page.screenshot({path:dir+'/home-fixed-'+width+'.png',fullPage:true});
+  }
+  await page.locator('[data-dashboard-filter] [name=status]').selectOption('delivered');await page.locator('.filter-actions button').first().click();await page.locator('[data-order-table] .delivered').waitFor();
+  await page.locator('[data-scope=active]').click();await page.waitForFunction(()=>document.querySelectorAll('[data-order-table] tbody tr').length===0);
+  await page.locator('[data-dashboard-filter] [name=status]').selectOption('delivered');await page.locator('.filter-actions button').first().click();await page.locator('[data-order-table] .delivered').waitFor();assert.equal(await page.locator('[data-scope=all]').getAttribute('aria-pressed'),'true');
+  await page.setViewportSize({width:1440,height:900});await page.locator('[data-nav-more] summary').click();await page.locator('[data-view=adminDesk]').click();await page.locator('[data-module-help=adminDesk]').waitFor();assert.equal(await page.locator('[data-nav-more]').getAttribute('open'),'');
+  for(const width of [1440,390]){
+   await page.setViewportSize({width,height:900});
+   const buttons=await page.locator('.cards .card').first().locator('.actions button').evaluateAll(rows=>rows.slice(0,2).map(b=>({w:b.getBoundingClientRect().width,h:b.getBoundingClientRect().height,top:b.getBoundingClientRect().top})));
+   assert.equal(buttons.length,2);assert.ok(Math.abs(buttons[0].w-buttons[1].w)<1);assert.ok(Math.abs(buttons[0].h-buttons[1].h)<1);assert.ok(Math.abs(buttons[0].top-buttons[1].top)<1);
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  }
+  await page.setViewportSize({width:1440,height:900});
+  await page.screenshot({path:dir+'/sections-admin-grid.png',fullPage:true});
+  await page.locator('[data-view=stockroom]').click();await page.locator('[data-module-help=stockroom]').waitFor();assert.match(await page.locator('[data-module-help]').textContent(),/моющие средства/);
+  assert.deepEqual(errors,[]);await context.close();
+ }finally{await browser?.close();await f.close();}
+});

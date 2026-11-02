@@ -33,3 +33,15 @@ test('клиенты: пагинация и карточка ограничив�
  for(const role of ['driver','warehouse','washer','packer'])await assert.rejects(call(db,'crm_clients',['{}',ids[role]]),e=>e.code==='42501');
  for(const role of ['anon','authenticated'])for(const fn of ['public.crm_queue(jsonb,uuid,boolean)','public.crm_clients(jsonb,uuid)','public.crm_client_card(uuid,uuid,uuid)'])assert.equal((await db.query("select has_function_privilege($1,$2,'execute') ok",[role,fn])).rows[0].ok,false);
 });
+import {workflowServer} from './helpers/workflow-server.js';
+
+test('HTTP + SQL: главная по умолчанию включает доставленные, активный режим и фильтр завершённых не конфликтуют',async()=>{
+ const f=await workflowServer();try{
+  await advance(f.sql,f.orderId);const id=await create(f.sql,{items:[]});await f.db.rpc('crm_ready',{});
+  const get=async query=>{const r=await fetch(f.url+'/api/home'+query,{headers:{Authorization:'Bearer operator'}});return {status:r.status,body:await r.json()};};
+  const all=await get('');assert.equal(all.status,200);assert.equal(all.body.count,2);assert.ok(all.body.data.some(o=>o.id===f.orderId&&o.status==='delivered'));
+  const active=await get('?scope=active');assert.equal(active.body.count,1);assert.equal(active.body.data[0].id,id);
+  for(const query of ['?status=delivered','?scope=active&status=delivered']){const r=await get(query);assert.equal(r.body.count,1);assert.equal(r.body.data[0].id,f.orderId);assert.equal(r.body.totals.amount,162000);}
+  assert.equal((await get('?scope=unknown')).status,400);
+ }finally{await f.close();}
+});

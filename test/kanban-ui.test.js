@@ -106,3 +106,17 @@ test('DOM: итоговые цифры фильтруются SQL, галере�
  }finally{if(b)await b.close();await f.close();}
 });
 
+
+test('DOM: доставленный виден на главной, «В работе» не скрывает выбранный статус, разделы поясняются и сохраняют права',async()=>{
+ const f=await workflowServer();let b;try{
+  await advance(f.sql,f.orderId);b=await browser(f);const {d,w,login,wait,submit}=b;await login('admin','home');
+  await wait(()=>d.querySelector('[data-order-table] .delivered'));assert.equal(d.querySelectorAll('[data-order-table] tbody tr').length,1);
+  const status=d.querySelector('[data-dashboard-filter] [name=status]');status.value='delivered';submit('[data-dashboard-filter]');await wait(()=>d.querySelector('[data-order-table] .delivered'));
+  d.querySelector('[data-scope=active]').click();await wait(()=>d.querySelector('[data-dashboard=reset]')&&d.querySelectorAll('[data-order-table] tbody tr').length===0);assert.equal(status.value,'');
+  status.value='delivered';submit('[data-dashboard-filter]');await wait(()=>d.querySelector('[data-order-table] .delivered'));assert.equal(d.querySelector('[data-scope=all]').getAttribute('aria-pressed'),'true');
+  const more=d.querySelector('[data-nav-more]');more.open=true;more.dispatchEvent(new w.Event('toggle'));assert.ok(d.querySelector('.nav-group-title'));assert.equal(d.querySelector('[data-view=stockroom]').textContent,'Материалы');
+  for(const view of w.crmModules.views(w.crmUI.user()).filter(v=>v!=='kanban'))assert.equal(d.querySelectorAll('nav [data-view="'+view+'"]').length,1,view);
+  d.querySelector('[data-view=adminDesk]').click();await wait(()=>d.querySelector('[data-module-help=adminDesk]'));assert.equal(d.querySelector('[data-nav-more]').open,true);assert.match(d.querySelector('[data-module-help]').textContent,/Сотрудники и роли/);
+  await login('operator','home');assert.equal(d.querySelector('nav [data-view=stockroom]'),null);assert.equal(d.querySelector('nav [data-view=payrollDesk]'),null);
+ }finally{if(b)await b.close();await f.close();}
+});
