@@ -2,6 +2,19 @@ import {t,money,date,locale,setLocale,text,localizedName} from './i18n.js';
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const state={token:sessionStorage.getItem('crm_access_token'),user:null,view:'orders',rows:[],cursor:null,filters:{},reasons:[],staff:[],tariffs:[],selected:null,request:0};
+const moduleGroups=[
+ ['navClients',['leads','calls','qualityDesk','rewashDesk']],
+ ['navFinance',['cashbox','loyaltyDesk','payrollDesk']],
+ ['navProduction',['stockroom','planningDesk']],
+ ['navControl',['adminDesk','orderMetrics','alerts','requests','trash','audit']],
+ ['navService',['integrationsDesk','clientsExport','queue']]
+];
+const moduleHints=new Set(moduleGroups.flatMap(([,views])=>views));
+function explainModule(view){
+ if(!moduleHints.has(view)||$('#main [data-module-help]'))return;
+ const heading=$('#main .heading')||$('#main h1');
+ heading?.insertAdjacentHTML('afterend','<p class="module-help" data-module-help="'+view+'">'+esc(t('help_'+view))+'</p>');
+}
 const has=permission=>state.user?.permissions?.includes(permission);
 const button=(key,action,attrs='')=>`<button type="button" data-action="${action}" ${attrs}>${esc(t(key))}</button>`;
 const field=(key,name,type='text',extra='',id=name)=>`<div class="field"><label for="${id}">${esc(t(key))}</label><input id="${id}" name="${name}" type="${type}" ${type==='tel'?'inputmode="tel" placeholder="90 123 45 67"':''} ${extra}>${type==='tel'?`<small>${esc(t('phoneHint'))}</small>`:''}</div>`;
@@ -26,7 +39,7 @@ function logout() {
  state.token=null;state.user=null;state.rows=[];state.staff=[];state.selected=null;state.request++;
  try{if(previousUser)sessionStorage.removeItem(`crm:new-order:${previousUser}`);}catch{}
  sessionStorage.removeItem('crm_access_token');
- sessionStorage.removeItem('crm_user_id');window.crmModules?.logout?.();
+ sessionStorage.removeItem('crm_user_id');window.crmModules?.logout?.();state.navMoreOpen=false;
  $('#detail').close();$('#detail').innerHTML='';$('#action').close();$('#action').innerHTML='';loginScreen();
 }
 function shell() {
@@ -37,7 +50,9 @@ function shell() {
  const navButton=(view,label)=>'<button type="button" data-view="'+view+'" aria-current="'+(state.view===view||(view==='orderList'&&state.view==='kanban')?'page':'false')+'">'+esc(t(label||view))+'</button>';
  $('#header').innerHTML='<div class="bar"><div class="brand">'+esc(t('title'))+'<small>'+esc(t('subtitle'))+'</small></div><div class="header-controls"><label class="language-switch" for="interface-language">'+esc(t('language'))+'<select id="interface-language" data-language><option value="ru" '+(locale==='ru'?'selected':'')+'>Русский</option><option value="uz" '+(locale==='uz'?'selected':'')+'>O‘zbekcha</option></select></label>'+(state.user?'<div class="actions"><div class="user">'+esc(state.user.full_name)+'<small>'+esc(t(state.user.role))+'</small></div>'+button('logout','logout')+'</div>':'')+'</div></div>'+
  (state.user?'<nav aria-label="'+esc(t('navigation'))+'">'+primary.map(([view,label])=>navButton(view,label)).join('')+
- (more.length?'<details class="nav-more"><summary>'+esc(t('moreSections'))+'</summary>'+more.map(view=>navButton(view)).join('')+'</details>':'')+'</nav>':'');
+ (more.length?'<details class="nav-more" data-nav-more '+(state.navMoreOpen?'open':'')+'><summary>'+esc(t('moreSections'))+'</summary><p class="nav-help">'+esc(t('extraSectionsHint'))+'</p><div class="nav-groups">'+moduleGroups.map(([label,keys])=>{
+ const allowed=keys.filter(v=>more.includes(v));return allowed.length?'<div class="nav-group"><span class="nav-group-title">'+esc(t(label))+'</span>'+allowed.map(v=>navButton(v,v==='stockroom'?'materials':v==='payrollDesk'?'payrollNav':v)).join('')+'</div>':'';
+ }).join('')+more.filter(v=>!moduleHints.has(v)).map(v=>navButton(v)).join('')+'</div></details>':'')+'</nav>':'');
 }
 function loginScreen() {
  shell();
@@ -71,12 +86,12 @@ function filterForm() {
 }
 async function listScreen() {
  shell();
- if(window.crmModules?.views(state.user).includes(state.view)){await window.crmModules.render(state.view);return;}
+ if(window.crmModules?.views(state.user).includes(state.view)){await window.crmModules.render(state.view);explainModule(state.view);return;}
  $('#main').innerHTML=`<div class="heading"><h1>${esc(t(state.view))}</h1><div class="actions">${has('create')&&state.view==='orders'?button('newOrder','new-order','class="primary"'):''}${button('refresh','refresh')}</div></div>${filterForm()}<div id="list" aria-live="polite"></div><div id="pagination"></div>`;
- await loadList();
+ await loadList();explainModule(state.view);
 }
 async function loadList(append=false) {
- if(window.crmModules?.views(state.user).includes(state.view)){await window.crmModules.render(state.view);return;}
+ if(window.crmModules?.views(state.user).includes(state.view)){await window.crmModules.render(state.view);explainModule(state.view);return;}
  const request=++state.request,view=state.view;
  if(!append) {state.rows=[];$('#list').textContent=t('loading');}
  const params=new URLSearchParams(Object.entries(state.filters).filter(([,v])=>v));
@@ -234,10 +249,11 @@ document.addEventListener('submit',async event=>{
  } catch(e){if(error?.isConnected)error.textContent=e.message;else toast(e.message);}
  finally{if(submit)submit.disabled=false;}
 });
+document.addEventListener('toggle',event=>{if(event.target.matches?.('[data-nav-more]')&&event.target.isConnected)state.navMoreOpen=event.target.open;},true);
 document.addEventListener('click',async event=>{
  const el=event.target.closest('button');if(!el||el.disabled)return;
  try {
-  if(el.dataset.view){state.view=el.dataset.view;state.filters={};await listScreen();return;}
+  if(el.dataset.view){if(innerWidth<=950)state.navMoreOpen=false;state.view=el.dataset.view;state.filters={};await listScreen();return;}
   if(el.dataset.detailTab){await changeDetailTab(el.dataset.detailTab);return;}
   const action=el.dataset.action;
   if(action==='logout')logout();

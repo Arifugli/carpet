@@ -51,7 +51,7 @@ POST /api/orders/:id/pickup-items, Idempotency-Key: UUID, тело {items:[{item
 
 ## Очереди и карточки (0019)
 
-GET `/api/home` и `/api/order-table`: прежние boardFilter + status, client_id и focus=attention|pickup_today|ready. limit по умолчанию 50 (максимум 100), offset. RPC crm_queue проверяет активный профиль/видимость заказа; домашняя очередь исключает delivered/cancelled. Ответ data/count/totals/tiles/limit/offset/next_offset/previous_offset/generated_at. Итоги считают всю выборку, не одну страницу. Период относится к stage_entered_at, время «сегодня» — Asia/Tashkent.
+GET `/api/home` и `/api/order-table`: прежние boardFilter + status, client_id и focus=attention|pickup_today|ready. limit по умолчанию 50 (максимум 100), offset. RPC crm_queue проверяет активный профиль/видимость заказа; scope=active у домашней очереди исключает delivered/cancelled; по умолчанию с 1.0.1 показываются все доступные заказы. Явный status=delivered/cancelled имеет приоритет над scope=active. Параметр scope проверяется API, не передаётся SQL-фильтрам; RPC вызывается с соответствующим p_home. Ответ data/count/totals/tiles/limit/offset/next_offset/previous_offset/generated_at. Итоги считают всю выборку, не одну страницу. Период относится к stage_entered_at, время «сегодня» — Asia/Tashkent.
 
 GET `/api/client-list`: право clients, q/branch_id/limit/offset. RPC crm_clients возвращает контакты, число доступных заказов и постраничный список. GET `/api/client-card/:id?branch_id=UUID`: crm_client_card возвращает данные клиента, до 10 адресов (актуальный первым), до 10 последних видимых заказов и orders_count. Производственные роли/водитель доступа к этим endpoints не получают.
 
