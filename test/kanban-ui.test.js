@@ -7,23 +7,42 @@ import {IDBFactory} from 'fake-indexeddb';
 import {workflowServer} from './helpers/workflow-server.js';
 import {advance,call,ids} from './helpers/database.js';
 async function browser(f){
- const files=await Promise.all(['index.html','i18n.js','offline.js','workspaces.js','reports.js','operations.js','kanban.js','app.js'].map(n=>readFile(new URL('../public/'+n,import.meta.url),'utf8')));
+ const files=await Promise.all(['index.html','i18n.js','offline.js','workspaces.js','reports.js','operations.js','kanban.js','dashboard.js','app.js'].map(n=>readFile(new URL('../public/'+n,import.meta.url),'utf8')));
  const dom=new JSDOM(files[0],{url:f.url,runScripts:'outside-only'}),w=dom.window,d=w.document;Object.defineProperty(w,'indexedDB',{value:new IDBFactory()});w.crypto.randomUUID=randomUUID;w.fetch=(path,args)=>fetch(new URL(path,f.url),args);
- w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};w.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
+ w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};w.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');this.dispatchEvent(new w.Event('close'));};
  w.eval(files.slice(1).map(s=>s.replace(/^import .*;\r?\n/gm,'').replace(/^export /gm,'')).join('\n'));
  const wait=async fn=>{for(let n=0;n<300;n++){if(fn())return;await new Promise(r=>setTimeout(r,15));}throw Error('UI timeout: '+d.body.textContent);};
  const submit=selector=>{const form=typeof selector==='string'?d.querySelector(selector):selector;assert.ok(form,selector);form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));};
- const login=async role=>{if(d.querySelector('[data-action=logout]')){d.querySelector('[data-action=logout]').click();await wait(()=>d.querySelector('[data-form=login]'));}await wait(()=>d.querySelector('[data-form=login]'));d.querySelector('[name=email]').value=role+'@example.test';d.querySelector('[name=password]').value='test';submit('[data-form=login]');await wait(()=>d.querySelector('[data-column]'));};
+ const login=async(role,view='kanban')=>{if(d.querySelector('[data-action=logout]')){d.querySelector('[data-action=logout]').click();await wait(()=>d.querySelector('[data-form=login]'));}await wait(()=>d.querySelector('[data-form=login]'));d.querySelector('[name=email]').value=role+'@example.test';d.querySelector('[name=password]').value='test';submit('[data-form=login]');await wait(()=>d.querySelector('[data-work-view=home]'));if(view!=='home')await w.crmUI.navigate(view);await wait(()=>view==='kanban'?d.querySelector('[data-column]'):d.querySelector('[data-order-table]'));};
  return {dom,w,d,wait,submit,login,close:async()=>{await new Promise(r=>setTimeout(r,150));dom.window.close();}};
 }
-test('DOM + HTTP + SQL: водитель планирует, измеряет, формирует цену и передаёт; склад видит форму измерений',async()=>{
- const f=await workflowServer();let b;try{b=await browser(f);const {d,w,login,wait,submit}=b;await login('driver');assert.equal(d.querySelectorAll('[data-column]').length,6);
-  d.querySelector('[data-command="pickup.claim"]').click();await wait(()=>d.querySelector('[data-flow-command]'));d.querySelector('[name=pickup_at]').value='2026-11-02T10:00';submit('[data-flow-command]');await wait(()=>d.querySelector('[data-command="pickup.collect"]'));
-  const items=(await f.sql.query('select id from order_items where order_id=$1',[f.orderId])).rows;for(const i of items)await call(f.sql,'register_order_photo',[i.id,`${f.orderId}/${i.id}/${randomUUID()}.jpg`,'intake',ids.driver,null]);await f.db.rpc('crm_measurements',{oid:f.orderId,u:ids.driver});
-  d.querySelector('[data-command="pickup.collect"]').click();await wait(()=>d.querySelector('[data-intake-composition]'));submit('[data-intake-composition]');await wait(()=>d.querySelector('[data-flow-measure]'));let form=d.querySelector('[data-flow-measure]');form.querySelector('[name=length_m]').value='3';form.querySelector('[name=width_m]').value='2';form.querySelector('[data-flow=preview]').click();await wait(()=>form.querySelector('[data-flow-price]').textContent.includes('162'));assert.equal(form.querySelector('button.primary').disabled,false);submit(form);
-  await wait(()=>d.querySelector('[data-command="pickup.handover"]'));assert.equal((await f.sql.query('select status from orders where id=$1',[f.orderId])).rows[0].status,'pickup_planned');
-  d.querySelector('[data-command="pickup.handover"]').click();await wait(()=>!d.querySelector(`[data-card="${f.orderId}"]`));await login('warehouse');assert.equal(d.querySelectorAll('[data-column]').length,1);d.querySelector('[data-command="warehouse.receive"]').click();await wait(()=>d.querySelector('[data-command="warehouse.measure"]'));d.querySelector('[data-command="warehouse.measure"]').click();await wait(()=>d.querySelector('[data-flow-measure="warehouse.measure"]'));
-  form=d.querySelector('[data-flow-measure]');assert.ok(form.querySelector('[name=length_m]'));assert.ok(form.querySelector('[name=quantity]'));submit(form);await wait(()=>d.querySelector('[data-command="warehouse.to_wash"]'));
+test('DOM + HTTP + SQL: водитель действует в боковой карточке; склад получает форму замеров',async()=>{
+ const f=await workflowServer();let b;try{
+  b=await browser(f);const {d,w,login,wait,submit}=b;
+  const open=async()=>{d.querySelector('[data-card="'+f.orderId+'"] [data-flow=open]').click();await wait(()=>d.querySelector('#detail').open);};
+  await login('driver');assert.equal(d.querySelectorAll('[data-column]').length,6);
+  await open();d.querySelector('[data-command="pickup.claim"]').click();await wait(()=>d.querySelector('[data-flow-command]'));d.querySelector('[name=pickup_at]').value='2026-11-02T10:00';submit('[data-flow-command]');await wait(()=>!d.querySelector('#action').open);await open();await wait(()=>d.querySelector('[data-command="pickup.collect"]'));
+  const items=(await f.sql.query('select id from order_items where order_id=$1',[f.orderId])).rows;for(const i of items)await call(f.sql,'register_order_photo',[i.id,f.orderId+'/'+i.id+'/'+randomUUID()+'.jpg','intake',ids.driver,null]);await f.db.rpc('crm_measurements',{oid:f.orderId,u:ids.driver});
+  d.querySelector('[data-command="pickup.collect"]').click();await wait(()=>d.querySelector('[data-intake-composition]'));submit('[data-intake-composition]');await wait(()=>d.querySelector('[data-flow-measure]'));let form=d.querySelector('[data-flow-measure]');form.querySelector('[name=length_m]').value='3';form.querySelector('[name=width_m]').value='2';form.querySelector('[data-flow=preview]').click();await wait(()=>form.querySelector('[data-flow-price]').textContent.includes('162'));submit(form);
+  await wait(()=>!d.querySelector('#action').open);await open();await wait(()=>d.querySelector('[data-command="pickup.handover"]'));d.querySelector('[data-command="pickup.handover"]').click();await wait(()=>!d.querySelector('[data-card="'+f.orderId+'"]'));
+  await login('warehouse');await open();await wait(()=>d.querySelector('[data-command="warehouse.receive"]'));d.querySelector('[data-command="warehouse.receive"]').click();await wait(()=>d.querySelector('[data-command="warehouse.measure"]'));d.querySelector('[data-command="warehouse.measure"]').click();await wait(()=>d.querySelector('[data-flow-measure="warehouse.measure"]'));
+  form=d.querySelector('[data-flow-measure]');assert.ok(form.querySelector('[name=length_m]'));assert.ok(form.querySelector('[name=quantity]'));submit(form);await wait(()=>!d.querySelector('#action').open);await open();await wait(()=>d.querySelector('[data-command="warehouse.to_wash"]'));
+ }finally{if(b)await b.close();await f.close();}
+});
+
+test('DOM Dashboard: главная, таблица, боковая карточка и клиент сохраняют фильтр и права роли',async()=>{
+ const f=await workflowServer();let b;try{
+  b=await browser(f);const {d,w,login,wait,submit}=b;await login('operator','home');
+  assert.equal(d.querySelector('[data-view=reports]'),null);assert.equal(d.querySelector('[data-view=adminDesk]'),null);
+  assert.ok(d.querySelector('[data-order-table]'));assert.equal(d.querySelectorAll('.home-tile').length,3);
+  const search=d.querySelector('[data-dashboard-filter] [name=q]');search.value='K-1';submit('[data-dashboard-filter]');await wait(()=>d.querySelector('[data-order-table] tbody tr'));
+  d.querySelector('[data-dashboard=open]').click();await wait(()=>d.querySelector('#detail').open);
+  assert.ok(d.body.classList.contains('detail-visible'));assert.equal(d.querySelector('[data-flow-detail]').open,false);assert.equal(d.querySelector('[data-photo-gallery]').open,false);
+  d.querySelector('[data-detail-tab=client]').click();await wait(()=>d.querySelector('.client-overview'));assert.match(d.querySelector('.client-overview').textContent,/Дилноза/);
+  d.querySelector('[data-action=close-detail]').click();assert.equal(d.body.classList.contains('detail-visible'),false);assert.equal(d.querySelector('[name=q]').value,'K-1');
+  d.querySelector('[data-view=clients]').click();await wait(()=>d.querySelector('[data-client-table]'));d.querySelector('[data-dashboard=client]').click();await wait(()=>d.querySelector('.client-overview'));
+  assert.equal(d.querySelectorAll('[data-photo-gallery]').length,1);
+  d.querySelector('[data-action=close-detail]').click();await login('warehouse','home');assert.equal(d.querySelector('[data-view=clients]'),null);assert.equal(d.querySelector('[data-view=reports]'),null);
  }finally{if(b)await b.close();await f.close();}
 });
 
@@ -81,8 +100,8 @@ test('DOM: оператор — 10 этапов и обязательный ра
  }finally{if(b)await b.close();await f.close();}
 });
 test('DOM: итоговые цифры фильтруются SQL, галерея закрыта по умолчанию, упаковщик получает фото-чек',async()=>{
- const f=await workflowServer();let b;try{await advance(f.sql,f.orderId,'pack_accepted');await f.db.rpc('crm_measurements',{oid:f.orderId,u:ids.admin});b=await browser(f);const {d,login,wait,submit}=b;await login('packer');assert.equal(d.querySelectorAll('[data-column]').length,1);assert.ok(d.querySelector('[data-flow=pack-photo]'));
-  d.querySelector('[data-flow=open]').click();await wait(()=>d.querySelector('[data-photo-gallery]'));assert.equal(d.querySelectorAll('#detail [data-photo-gallery]').length,1);const gallery=d.querySelector('[data-photo-gallery]');assert.equal(gallery.open,false);assert.equal(gallery.dataset.url,'/orders/'+f.orderId+'/photos');assert.equal(gallery.querySelectorAll('img').length,0);gallery.open=true;gallery.dispatchEvent(new b.w.Event('toggle'));await wait(()=>gallery.querySelector('[data-gallery-photo]'));assert.ok(gallery.querySelector('[data-gallery-photo]').src.startsWith('https://example.test/private/'));d.querySelector('[data-action=close-detail]').click();
+ const f=await workflowServer();let b;try{await advance(f.sql,f.orderId,'pack_accepted');await f.db.rpc('crm_measurements',{oid:f.orderId,u:ids.admin});b=await browser(f);const {d,login,wait,submit}=b;await login('packer');assert.equal(d.querySelectorAll('[data-column]').length,1);
+  d.querySelector('[data-flow=open]').click();await wait(()=>d.querySelector('[data-photo-gallery]'));assert.ok(d.querySelector('[data-flow=pack-photo]'));assert.equal(d.querySelectorAll('#detail [data-photo-gallery]').length,1);const gallery=d.querySelector('[data-photo-gallery]');assert.equal(gallery.open,false);assert.equal(gallery.dataset.url,'/orders/'+f.orderId+'/photos');assert.equal(gallery.querySelectorAll('img').length,0);gallery.open=true;gallery.dispatchEvent(new b.w.Event('toggle'));await wait(()=>gallery.querySelector('[data-gallery-photo]'));assert.ok(gallery.querySelector('[data-gallery-photo]').src.startsWith('https://example.test/private/'));d.querySelector('[data-action=close-detail]').click();
   const filter=d.querySelector('[data-stage-filter]');filter.querySelector('[name=min_price]').value='999999';submit(filter);await wait(()=>!d.querySelector('[data-card]'));assert.equal(d.querySelector('[data-column-totals] dd').textContent,'0');
  }finally{if(b)await b.close();await f.close();}
 });
