@@ -6,11 +6,23 @@ import {fileURLToPath} from 'node:url';
 import {workflowServer} from './helpers/workflow-server.js';
 test('Chromium mobile: шесть колонок driver, десять operator, обязательный район и отсутствие размеров',async()=>{
  const f=await workflowServer();let browser;try{
+  const far=await create(f.sql,{items:[{tariff:'blanket',quantity:1}]});await advance(f.sql,far,'ready_for_delivery');
+  const near=await create(f.sql,{district_code:'kokand_city',items:[{tariff:'blanket',quantity:1}]});await advance(f.sql,near,'ready_for_delivery');
+  await command(f.sql,'staff.update',{user_id:ids.driver,full_name:'driver',role:'driver',active:true,branch_id:'01000000-0000-4000-8000-000000000001',district_codes:['kokand_city'],driver_color:'#123abc'});await f.db.rpc('crm_ready',{});
   browser=await chromium.launch({headless:true,...(process.env.CRM_BROWSER_CHANNEL?{channel:process.env.CRM_BROWSER_CHANNEL}:{})});const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   const login=async role=>{await page.goto(f.url);await page.locator('[name=email]').fill(role+'@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table]').waitFor();await page.locator('[data-view=kanban]').click();await page.locator('[data-column]').first().waitFor();};
   await page.goto(f.url);await page.locator('[data-language]').selectOption('uz');await page.getByRole('heading',{name:'Xodimlar uchun kirish'}).waitFor();await page.reload();assert.equal(await page.locator('html').getAttribute('lang'),'uz');
   await login('driver');assert.equal(await page.locator('[data-column]').count(),6);assert.equal(await page.locator('[data-column=new] h2').textContent(),'Yangi buyurtmalar');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   const dir=fileURLToPath(new URL('../test-artifacts/',import.meta.url));await mkdir(dir,{recursive:true});await page.screenshot({path:dir+'/driver-mobile.png',fullPage:true});
+  await page.locator('[data-column=ready_for_delivery] .column-filter summary').click();
+  await page.locator('[data-column=ready_for_delivery] [name=q]').fill('does-not-match');await page.locator('[data-column=ready_for_delivery] form button').first().click();await page.waitForFunction(()=>!document.querySelector('[data-column=ready_for_delivery] [data-card]'));
+  await page.locator('#kanban').evaluate(el=>{el.scrollLeft=el.scrollWidth;});
+  await page.locator('[data-view=home]').click();await page.locator('[data-dashboard=ready-warehouse]').waitFor();await page.locator('[data-dashboard=ready-warehouse]').click();
+  await page.waitForFunction(()=>document.activeElement===document.querySelector('[data-column=ready_for_delivery] h2'));
+  const ready=page.locator('[data-column=ready_for_delivery]');assert.equal(await ready.locator('[data-card]').count(),2);assert.equal(await ready.locator('[data-card]').first().getAttribute('data-card'),near);assert.equal(await ready.locator('[data-card]').first().evaluate(el=>el.style.borderColor),'rgb(18, 58, 188)');assert.equal(await ready.locator('[name=q]').inputValue(),'');
+  const position=await ready.evaluate(el=>({left:el.getBoundingClientRect().left,board:document.querySelector('#kanban').getBoundingClientRect().left,top:el.getBoundingClientRect().top,header:document.querySelector('#header').getBoundingClientRect().bottom}));assert.ok(Math.abs(position.left-position.board)<2);assert.ok(position.top>=position.header-1);
+  await page.screenshot({path:dir+'/driver-ready-link-mobile.png',fullPage:true});
+
   await page.locator('[data-flow=open]').first().click();await page.locator('#detail[open]').waitFor();assert.equal(await page.locator('#detail [data-photo-gallery]').count(),1);assert.equal(await page.locator('#detail [data-photo-gallery]').getAttribute('open'),null);await page.locator('[data-action=close-detail]').click();
   await page.locator('[data-action=logout]').click();await login('operator');assert.equal(await page.locator('[data-column]').count(),10);await page.locator('[data-flow=create]').click();assert.equal(await page.locator('[data-form=create] [name=district_code]').getAttribute('required'),'');assert.equal(await page.locator('[data-form=create] [name=length_m]').count(),0);await page.screenshot({path:dir+'/operator-mobile.png',fullPage:true});await page.locator('[data-action=close-action]').click();await page.locator('[data-language]').selectOption('ru');await page.getByRole('heading',{name:/^Новые заказы/}).waitFor();assert.equal(await page.locator('html').getAttribute('lang'),'ru');await page.locator('[data-flow=create]').click();
   assert.equal(await page.locator('[data-form=create] input').first().getAttribute('name'),'phone');
@@ -42,7 +54,7 @@ test('Chromium mobile: шесть колонок driver, десять operator, 
   assert.deepEqual(errors,[]);await context.close();
  }finally{await browser?.close();await f.close();}
 });
-import {create} from './helpers/database.js';
+import {create,command,ids} from './helpers/database.js';
 
 test('Chromium Dashboard: 55 заказов, страницы, боковая карточка, клиент и мобильный возврат',async()=>{
  const f=await workflowServer();let browser;try{
@@ -59,7 +71,7 @@ test('Chromium Dashboard: 55 заказов, страницы, боковая к
   await page.locator('[data-detail-tab=client]').click();await page.locator('.client-overview').waitFor();assert.match(await page.locator('.client-overview').textContent(),/55/);assert.equal(await page.locator('.client-order-row').count(),10);
   await page.screenshot({path:dir+'/client-side-desktop.png',fullPage:true});await page.locator('[data-action=close-detail]').click();assert.equal(await page.locator('[data-order-table] tbody tr').count(),5);
   await page.locator('[data-view=kanban]').click();await page.locator('[data-card]').first().waitFor();assert.equal(await page.locator('[data-column=new] [data-card]').count(),15);await page.screenshot({path:dir+'/kanban-desktop.png',fullPage:true});
-  await page.locator('[data-column=new] [data-flow=open]').first().click();await page.locator('#detail[open]').waitFor();await page.setViewportSize({width:390,height:844});
+  await page.locator('[data-column=new] [data-flow=open]').first().click();await page.locator('#detail[open]').waitFor();await page.setViewportSize({width:390,height:844});await page.waitForFunction(()=>document.querySelector('#main').inert);
   assert.equal(await page.locator('#detail').evaluate(el=>Math.round(el.getBoundingClientRect().width)),390);assert.equal(await page.locator('#main').evaluate(el=>el.inert),true);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:dir+'/order-panel-mobile.png',fullPage:true});await page.locator('[data-action=close-detail]').click();assert.equal(await page.locator('#main').evaluate(el=>el.inert),false);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);await context.close();
