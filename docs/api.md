@@ -42,3 +42,9 @@ POST `/staff/create`: email/password/full_name/role/active/branch_id; driver т�
 Прежние команды branch.save, tariff.schedule, setting.schedule, catalog.save, template.save и admin.update/archive/restore сохранены. Финансы payment.record/confirm/intent/refund, cash.close, discount.*, клиентские предпочтения/теги/согласия, акты/претензии, склад и начисления, телефония/webhook/outbox и импорт/экспорт сохраняют API, с правами из permissions.md. Планирование и ставки доступны admin.
 
 GET `/health` — процесс; GET `/ready` — применённая схема и завершённая очистка, без автоматического DDL. Клиентский трекинг не раскрывает адрес, телефон или размеры.
+
+## Состав изделий при заборе (0018)
+
+POST /orders допускает отсутствие items или пустой массив: заявка без изделий, pricing_state=awaiting_measurements. Форма оператора передаёт телефон, ФИО, структурированный адрес и контекст филиала/источника.
+
+POST /api/orders/:id/pickup-items, Idempotency-Key: UUID, тело {items:[{item_id?:UUID,tariff:carpet|blanket|tushak,quantity:integer,note?:string}],flags?:{urgent?:boolean,stains?:boolean,pensioner?:boolean}}. Только назначенный driver, pickup_planned/pending до оценки. Ковры — по одной строке, количество каждой 1; одеяла/тушаки — 1–1000, до 30 строк. Запись, удаление черновых позиций и журнал в одной транзакции с блокировкой заказа. Позиции с фото/замерами защищены. Ответ содержит постоянные IDs и ставки. Далее прежние pickup-quote → загрузка фото → pickup.collect. Пустой забор запрещён БД. /ready проверяет схему 18.

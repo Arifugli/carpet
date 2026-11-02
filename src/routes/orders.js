@@ -146,5 +146,11 @@ export function createOrders(db,{bucket='carpet-photos'}={}) {
   const b=z.object({items:z.array(measurementInput).min(1).max(30)}).strict().parse(req.body),o=await resolve(req);
   res.json(checked(await db.rpc('crm_pickup_preview',{oid:o.id,items:b.items,u:req.user.id})));
  });
+ router.post('/orders/:id/pickup-items',allow('pickup'),async(req,res)=>{
+  const line=z.object({item_id:z.string().uuid().optional(),tariff:z.enum(['carpet','blanket','tushak']),quantity:z.number().int().min(1).max(1000),note:z.string().max(300).optional()}).strict();
+  const b=z.object({items:z.array(line).min(1).max(30),flags:z.object({urgent:z.boolean(),stains:z.boolean(),pensioner:z.boolean()}).partial().strict().default({})}).strict().parse(req.body),o=await resolve(req);
+  const key=z.string().uuid().parse(req.get('Idempotency-Key'));
+  res.json(checked(await db.rpc('crm_save_pickup_items',{oid:o.id,items:b.items,flags:b.flags,u:req.user.id,p_key:key,p_ip:req.ip})));
+ });
  return router;
 }

@@ -269,9 +269,30 @@ import {t,money,date,localizedName} from './i18n.js';
  window.addEventListener('crm-queue',()=>{if(!user())return;if(state.view==='queue')renderQueue().catch(()=>{});else window.CRMWorkflow?.refresh();});
  $('#action').addEventListener('close',stopCamera);
  window.crmModules={views:availableViews,home:()=> 'kanban',prepare,render,
-  lookupInOrderForm:async(form,phone)=>{const data=await read('client',{phone});if(!data.client||!form.isConnected||form.elements.phone.value.replace(/\D/g,'').slice(-9)!==phone.replace(/\D/g,'').slice(-9))return;if(!form.elements.name.value)form.elements.name.value=data.client.name||'';state.savedAddresses=data.addresses;let target=form.querySelector('[data-client-addresses]');if(!target){target=document.createElement('div');target.dataset.clientAddresses='';form.querySelector('[data-address-fields]')?.before(target);}target.innerHTML=data.addresses.length?select('saved_structured_address','addresses',data.addresses.map(a=>[a.id,`${a.label} ${a.address}`])):'';},
+  clearClientAutofill:form=>{
+   const key=form.elements.phone.value.replace(/\D/g,'').slice(-9);
+   if(form.dataset.clientPhone&&form.dataset.clientPhone!==key){for(const [name,value]of Object.entries(form._clientFilled||{})){const el=form.elements[name];if(!el)continue;if(el.type==='checkbox'){if(el.checked===value)el.checked=false;}else if(el.value===value)el.value=name==='region_code'?'fergana':'';}form.querySelector('[data-client-addresses]')?.remove();form.querySelector('[data-client-status]').textContent='';delete form.dataset.clientPhone;form._clientFilled={};districtOptions(form);apartmentState(form);}
+  },
+  lookupInOrderForm:async(form,phone)=>{
+   const names=['name','region_code','district_code','street','house','apartment','landmark','private_house'],initial=Object.fromEntries(names.map(k=>[k,form.elements[k]?.type==='checkbox'?form.elements[k].checked:form.elements[k]?.value]));
+   const request=(form._clientRequest||0)+1;form._clientRequest=request;
+   const status=form.querySelector('[data-client-status]');if(status)status.textContent=t('clientLookupLoading');
+   try{
+    const data=await read('client',{phone});
+    if(!form.isConnected||!form.closest('dialog')?.open||request!==form._clientRequest||form.elements.phone.value.replace(/\D/g,'').slice(-9)!==phone.replace(/\D/g,'').slice(-9))return;
+    if(!data.client){if(status)status.textContent=t('newClientNumber');return;}
+    const address=data.addresses.find(a=>a.address===data.client.address&&a.region_code&&a.district_code)||data.addresses.find(a=>a.region_code&&a.district_code),values={name:data.client.name,...(address||{})};
+    const current=Object.fromEntries(names.map(k=>[k,form.elements[k]?.type==='checkbox'?form.elements[k].checked:form.elements[k]?.value]));
+    const next={...current};for(const k of names)if(values[k]!=null&&current[k]===initial[k])next[k]=values[k];
+    if(current.name===initial.name)form.elements.name.value=next.name||'';
+    fillAddress(form,next);form._clientFilled=Object.fromEntries(names.map(k=>[k,form.elements[k]?.type==='checkbox'?form.elements[k].checked:form.elements[k]?.value]));form.dataset.clientPhone=phone.replace(/\D/g,'').slice(-9);
+    if(status)status.textContent=t(address?'clientAutofilled':'clientAddressNeeded');
+    state.savedAddresses=data.addresses;let target=form.querySelector('[data-client-addresses]');if(!target){target=document.createElement('div');target.dataset.clientAddresses='';form.querySelector('[data-address-fields]')?.before(target);}
+    target.innerHTML=data.addresses.length>1?select('saved_structured_address','addresses',data.addresses.filter(a=>a.region_code&&a.district_code).map(a=>[a.id,`${a.label||''} ${a.address}`]),address?.id):'';
+   }catch(e){if(status?.isConnected&&request===form._clientRequest)status.textContent=t('clientLookupFailed');}
+  },
   logout:()=>{state.view=null;state.request++;mapOrigin='';mapRequest++;state.measuredItems=[];state.detailOrder=null;state.savedAddresses=[];stopCamera();},addFeature:feature=>state.extra.push(feature),
-  orderFields:()=>`${select('branch_id','branch',state.meta.branches.filter(b=>b.active).map(b=>[b.id,b.name]),user()?.branch_id||state.meta.branches[0]?.id,true)}${addressFields()}`,fillAddress,afterOrderDetail:o=>window.CRMWorkflow?.detail(o),
+  orderFields:()=>`${user()?.role==='admin'?select('branch_id','branch',state.meta.branches.filter(b=>b.active).map(b=>[b.id,b.name]),user()?.branch_id||state.meta.branches[0]?.id,true):`<input type="hidden" name="branch_id" value="${esc(user()?.branch_id)}">`}${addressFields()}`,fillAddress,afterOrderDetail:o=>window.CRMWorkflow?.detail(o),
   openScan:scan,photoBlob,driverRoute,photoGallery,sourceOptions:()=>options('source'),getMeta:()=>state.meta,openForm,command,forms,choices,
   orderActions:o=>{state.detailOrder=o;return `${window.CRMWorkflow?.actions(o)||''}<div class="actions desk-order-actions">${has('defects')?button('addDefect','defect-detail'):''}${has('payments')&&o.pricing_state==='priced'?button('collectPayment','payment',`data-order="${o.id}"`):''}${['admin','operator','driver'].includes(user().role)?button('paymentHistory','payments',`data-order="${o.id}"`):''}</div>`;},
  };

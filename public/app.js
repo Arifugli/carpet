@@ -24,6 +24,7 @@ async function api(path,{method='GET',body,idempotencyKey}={}) {
 function logout() {
  const previousUser=state.user?.id;if(previousUser)window.CRMOffline?.purgeSnapshots(previousUser).catch(()=>{});
  state.token=null;state.user=null;state.rows=[];state.staff=[];state.selected=null;state.request++;
+ try{if(previousUser)sessionStorage.removeItem(`crm:new-order:${previousUser}`);}catch{}
  sessionStorage.removeItem('crm_access_token');
  sessionStorage.removeItem('crm_user_id');window.crmModules?.logout?.();
  $('#detail').close();$('#detail').innerHTML='';$('#action').close();$('#action').innerHTML='';loginScreen();
@@ -133,23 +134,34 @@ function itemFields() {
  const seq=++itemSequence;
  return `<fieldset data-item><legend>${esc(t('product'))}</legend><div class="two"><label>${esc(t('productType'))}<select name="tariff" required>${state.tariffs.map(r=>`<option value="${esc(r.code)}">${esc(localizedName(r))} · ${money(r.price_per_m2)} / ${esc(t(r.unit==='piece'?'piece':'m2'))}</option>`).join('')}</select></label>${field('quantity','quantity','number','min="1" max="30" step="1" value="1" required',`quantity-${seq}`)}</div>${button('removeItem','remove-item')}</fieldset>`;
 }
-function newOrder(prefill={}) {
+const orderDraftKey=()=>`crm:new-order:${state.user?.id}`;
+function saveOrderDraft(form){
+ if(!state.user||!form.isConnected||!$('#action').open)return;
+ try{sessionStorage.setItem(orderDraftKey(),JSON.stringify({...orderBody(form),create_key:form.dataset.idempotencyKey}));}catch{}
+}
+function newOrder(prefill={},skipDraft=false) {
+ let restored=false;
+ if(!skipDraft&&!Object.keys(prefill).length){try{const draft=JSON.parse(sessionStorage.getItem(orderDraftKey())||'null');if(draft){prefill=draft;restored=true;}}catch{}}
+ const source=prefill.source||window.crmModules?.sourceOptions?.().find(([code])=>code==='call_in')?.[0]||window.crmModules?.sourceOptions?.()[0]?.[0]||'call_in';
  $('#action').innerHTML=`<div class="row dialog-head"><h2>${esc(t('newOrder'))}</h2>${button('close','close-action')}</div><form data-form="create">
-  ${field('clientFullName','name','text','required maxlength="120"')}${field('phone','phone','tel','value="+998" maxlength="32" required autocomplete="tel"')}
-  <div class="two">${field('desiredPickupDate','pickup_date','date')}${field('pickupSlot','pickup_slot','text','maxlength="40"')}</div><label>${esc(t('source'))}<select name="source">${(window.crmModules?.sourceOptions?.()||['call_in','call_out','instagram','telegram'].map(v=>[v,t(v)])).map(([v,label])=>`<option value="${esc(v)}">${esc(label)}</option>`).join('')}</select></label>
-  ${window.crmModules?.orderFields?.()||''}${field('comment','comment','text','maxlength="500"')}<div id="order-items">${(prefill.items?.length?prefill.items:[{}]).map(()=>itemFields()).join('')}</div>${button('addItem','add-item')}<div class="actions">${['urgent','stains','pensioner'].map(v=>`<label class="check"><input type="checkbox" name="${v}">${esc(t(v))}</label>`).join('')}</div><p class="muted">${esc(t('quoteHint'))}</p><p id="quote-result" class="success"></p><div data-error class="error" role="alert"></div><div class="actions">${button('quote','quote')}<button class="primary">${esc(t('create'))}</button></div></form>`;
- const form=$('#action form');for(const key of ['name','phone','source','pickup_slot'])if(prefill[key]!=null&&form.elements[key])form.elements[key].value=prefill[key];
- for(const flag of ['urgent','stains','pensioner'])if(prefill[flag])form.elements[flag].checked=true;
- form.querySelectorAll('[data-item]').forEach((el,index)=>{const it=prefill.items?.[index];if(it){const select=el.querySelector('[name=tariff]');if([...select.options].some(o=>o.value===it.tariff))select.value=it.tariff;el.querySelector('[name=quantity]').value=it.quantity||1;}});
+  ${restored?`<p class="notice">${esc(t('orderDraftRestored'))} ${button('discardDraft','discard-order-draft')}</p>`:''}
+  ${field('phone','phone','tel','value="+998" maxlength="32" required autocomplete="tel"')}<p data-client-status class="muted" role="status"></p>
+  ${field('clientFullName','name','text','required maxlength="120" autocomplete="name"')}
+  <input type="hidden" name="source" value="${esc(source)}">
+  ${window.crmModules?.orderFields?.()||''}
+  <p class="muted">${esc(t('operatorSimpleHint'))}</p><small>${esc(t('orderDraftHint'))}</small>
+  <div data-error class="error" role="alert"></div><button class="primary">${esc(t('create'))}</button></form>`;
+ const form=$('#action form');for(const key of ['name','phone'])if(prefill[key]!=null)form.elements[key].value=prefill[key];
+ if(prefill.branch_id&&form.elements.branch_id)form.elements.branch_id.value=prefill.branch_id;
  window.crmModules?.fillAddress?.(form,prefill);
- $('#action').querySelector('form').dataset.idempotencyKey=crypto.randomUUID();
- $('#action').showModal();
+ form.dataset.idempotencyKey=prefill.create_key||crypto.randomUUID();
+ $('#action').showModal();form.elements.phone.focus();
+ if(/^(?:\+?998)?\d{9}$/.test(form.elements.phone.value.replace(/[\s()-]/g,'')))window.crmModules?.lookupInOrderForm(form,form.elements.phone.value).catch(()=>{});
 }
 function orderBody(form) {
  const d=new FormData(form);
- return {name:d.get('name'),phone:d.get('phone'),...(d.get('pickup_date')?{pickup_date:d.get('pickup_date')}:{}),comment:d.get('comment')||'',pickup_slot:d.get('pickup_slot'),source:d.get('source'),urgent:d.has('urgent'),stains:d.has('stains'),pensioner:d.has('pensioner'),private_house:d.has('private_house'),
-  ...Object.fromEntries(['branch_id','region_code','district_code','street','house','apartment','landmark'].filter(k=>d.get(k)).map(k=>[k,d.get(k)])),
-  items:[...form.querySelectorAll('[data-item]')].map(el=>({quantity:Number(el.querySelector('[name=quantity]').value),tariff:el.querySelector('[name=tariff]').value}))};
+ return {name:d.get('name'),phone:d.get('phone'),source:d.get('source')||'call_in',private_house:d.has('private_house'),
+  ...Object.fromEntries(['branch_id','region_code','district_code','street','house','apartment','landmark'].filter(k=>d.get(k)).map(k=>[k,d.get(k)]))};
 }
 async function finishAction() {$('#action').close();$('#detail').close();toast(t('saved'));await loadList();}
 
@@ -162,7 +174,7 @@ document.addEventListener('submit',async event=>{
   if(kind==='login') {
    const session=await api('/public/login',{method:'POST',body:d});state.token=session.access_token;sessionStorage.setItem('crm_access_token',state.token);await initializeStaff();
   } else if(kind==='filters') {state.filters=d;await loadList();}
-  else if(kind==='create') {await api('/orders',{method:'POST',body:orderBody(form),idempotencyKey:form.dataset.idempotencyKey});await finishAction();}
+  else if(kind==='create') {await api('/orders',{method:'POST',body:orderBody(form),idempotencyKey:form.dataset.idempotencyKey});try{sessionStorage.removeItem(orderDraftKey());}catch{}await finishAction();}
   else {
    const path={cancel:'cancel','request-deletion':'deletion-request',delete:''}[kind];
    const body=kind==='cancel'?{...d,completed_work_amount:Number(d.completed_work_amount),payment_amount:Number(d.payment_amount)}:d;
@@ -185,6 +197,8 @@ document.addEventListener('click',async event=>{
   if(['cancel','delete','request-deletion'].includes(action))actionForm(action);
   if(action==='restore'){el.disabled=true;await api(`/orders/${state.selected.id}/restore`,{method:'POST',body:{}});await finishAction();}
   if(action==='new-order')newOrder();
+  if(action==='discard-order-draft'){const previous=sessionStorage.getItem(orderDraftKey());sessionStorage.removeItem(orderDraftKey());newOrder({},true);if(previous){$('#action form').insertAdjacentHTML('afterbegin',`<button type="button" data-action="undo-order-draft">${esc(t('undo'))}</button>`);$('#action form')._discardedDraft=previous;}}
+  if(action==='undo-order-draft'){sessionStorage.setItem(orderDraftKey(),el.closest('form')._discardedDraft);newOrder();}
   if(action==='add-item'&&$('#order-items').children.length<30)$('#order-items').insertAdjacentHTML('beforeend',itemFields());
   if(action==='remove-item'&&$('#order-items').children.length>1)el.closest('[data-item]').remove();
   if(action==='quote'){
@@ -210,7 +224,8 @@ document.addEventListener('change',async event=>{
  }catch(e){toast(e.message);}
 });
 let phoneLookupTimer;
-document.addEventListener('input',event=>{const form=event.target.closest('[data-form=create]');if(form&&event.target.name==='phone'){clearTimeout(phoneLookupTimer);const phone=event.target.value.replace(/[\s()-]/g,'');if(/^(?:\+?998)?\d{9}$/.test(phone))phoneLookupTimer=setTimeout(()=>window.crmModules?.lookupInOrderForm(form,phone).catch(()=>{}),400);}});
+document.addEventListener('input',event=>{const form=event.target.closest('[data-form=create]');if(!form)return;saveOrderDraft(form);if(event.target.name==='phone'){clearTimeout(phoneLookupTimer);window.crmModules?.clearClientAutofill?.(form);const phone=event.target.value.replace(/[\s()-]/g,'');if(/^(?:\+?998)?\d{9}$/.test(phone))phoneLookupTimer=setTimeout(()=>window.crmModules?.lookupInOrderForm(form,phone).then(()=>saveOrderDraft(form)).catch(()=>{}),350);}});
+document.addEventListener('change',event=>{const form=event.target.closest('[data-form=create]');if(form)saveOrderDraft(form);});
 document.addEventListener('change',event=>{if(event.target.name==='saved_address'){const form=event.target.closest('[data-form=create]');if(form&&form.elements.address)form.elements.address.value=event.target.value;}});
 
 async function start() {

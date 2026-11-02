@@ -659,7 +659,23 @@ export const dictionaries={
     "message_89": "Неверные данные. Проверьте обязательные поля.",
     "message_90": "Недостаточно прав.",
     "message_91": "Запись не найдена.",
-    "message_92": "Ошибка сервера."
+    "message_92": "Ошибка сервера.",
+    "operatorSimpleHint": "Изделия, замеры, фото и стоимость заполнит водитель при заборе.",
+    "orderDraftHint": "Черновик сохраняется в этой вкладке до создания заказа или выхода из аккаунта.",
+    "orderDraftRestored": "Восстановлен незавершённый заказ.",
+    "discardDraft": "Очистить черновик",
+    "undo": "Отменить действие",
+    "clientLookupLoading": "Проверяем номер…",
+    "newClientNumber": "Новый клиент — заполните ФИО и адрес.",
+    "clientAutofilled": "Клиент найден. ФИО и адрес заполнены — проверьте актуальность.",
+    "clientAddressNeeded": "Клиент найден. Адрес нужно заполнить или уточнить.",
+    "clientLookupFailed": "Не удалось проверить номер. Проверьте соединение или заполните данные вручную.",
+    "intakeComposition": "Изделия у клиента",
+    "driverCompositionHint": "Добавьте фактические изделия. Каждый ковёр — отдельной строкой; одеяла и тушаки — количеством. Затем перейдите к замерам и фото.",
+    "continueMeasurements": "Продолжить: замеры и фото",
+    "chooseProduct": "Выберите вид изделия",
+    "additional": "Дополнительно",
+    "itemPhotoLocked": "Фото уже прикреплено: удалить изделие или изменить его вид нельзя."
   },
   "uz": {
     "kanban": "Kanban",
@@ -1321,7 +1337,23 @@ export const dictionaries={
     "message_89": "Ma’lumotlar noto‘g‘ri. Majburiy maydonlarni tekshiring.",
     "message_90": "Huquqlar yetarli emas.",
     "message_91": "Yozuv topilmadi.",
-    "message_92": "Server xatosi."
+    "message_92": "Server xatosi.",
+    "operatorSimpleHint": "Mahsulotlar, o‘lchovlar, foto va narxni haydovchi olib ketishda kiritadi.",
+    "orderDraftHint": "Qoralama buyurtma yaratilguncha yoki hisobdan chiqilguncha shu oynada saqlanadi.",
+    "orderDraftRestored": "Tugallanmagan buyurtma tiklandi.",
+    "discardDraft": "Qoralamani tozalash",
+    "undo": "Amalni bekor qilish",
+    "clientLookupLoading": "Raqam tekshirilmoqda…",
+    "newClientNumber": "Yangi mijoz — F.I.Sh. va manzilni kiriting.",
+    "clientAutofilled": "Mijoz topildi. F.I.Sh. va manzil to‘ldirildi — tekshiring.",
+    "clientAddressNeeded": "Mijoz topildi. Manzilni to‘ldiring yoki aniqlashtiring.",
+    "clientLookupFailed": "Raqamni tekshirib bo‘lmadi. Aloqani tekshiring yoki ma’lumotlarni qo‘lda kiriting.",
+    "intakeComposition": "Mijozdagi mahsulotlar",
+    "driverCompositionHint": "Haqiqiy mahsulotlarni qo‘shing. Har bir gilam — alohida qator, ko‘rpa va to‘shak — soni bo‘yicha. Keyin o‘lchov va fotoga o‘ting.",
+    "continueMeasurements": "Davom etish: o‘lchov va foto",
+    "chooseProduct": "Mahsulot turini tanlang",
+    "additional": "Qo‘shimcha",
+    "itemPhotoLocked": "Foto biriktirilgan: mahsulotni o‘chirish yoki turini o‘zgartirish mumkin emas."
   }
 };
 const LANGUAGE_KEY='crm_locale';
