@@ -8,6 +8,10 @@ test('Chromium mobile: шесть колонок driver, десять operator, 
  const f=await workflowServer();let browser;try{
   const far=await create(f.sql,{items:[{tariff:'blanket',quantity:1}]});await advance(f.sql,far,'ready_for_delivery');
   const near=await create(f.sql,{district_code:'kokand_city',items:[{tariff:'blanket',quantity:1}]});await advance(f.sql,near,'ready_for_delivery');
+  const today=await create(f.sql,{items:[]});await command(f.sql,'pickup.claim',{order_id:today,pickup_at:new Date().toISOString()},'driver');
+  const tomorrow=await create(f.sql,{items:[]});await command(f.sql,'pickup.claim',{order_id:tomorrow,pickup_at:new Date(Date.now()+86400000).toISOString()},'driver');
+  const delayed=await create(f.sql,{items:[{tariff:'blanket',quantity:1}]});await advance(f.sql,delayed,'in_transit');await command(f.sql,'delivery.postpone',{order_id:delayed,reason:'Клиент попросил перенести'},'driver');
+  await f.sql.query("update orders set promised_at=now()-interval '1 hour' where id=$1",[f.orderId]);
   await command(f.sql,'staff.update',{user_id:ids.driver,full_name:'driver',role:'driver',active:true,branch_id:'01000000-0000-4000-8000-000000000001',district_codes:['kokand_city'],driver_color:'#123abc'});await f.db.rpc('crm_ready',{});
   browser=await chromium.launch({headless:true,...(process.env.CRM_BROWSER_CHANNEL?{channel:process.env.CRM_BROWSER_CHANNEL}:{})});const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   const login=async role=>{await page.goto(f.url);await page.locator('[name=email]').fill(role+'@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table]').waitFor();await page.locator('[data-view=kanban]').click();await page.locator('[data-column]').first().waitFor();};
@@ -22,6 +26,14 @@ test('Chromium mobile: шесть колонок driver, десять operator, 
   const ready=page.locator('[data-column=ready_for_delivery]');assert.equal(await ready.locator('[data-card]').count(),2);assert.equal(await ready.locator('[data-card]').first().getAttribute('data-card'),near);assert.equal(await ready.locator('[data-card]').first().evaluate(el=>el.style.borderColor),'rgb(18, 58, 188)');assert.equal(await ready.locator('[name=q]').inputValue(),'');
   const position=await ready.evaluate(el=>({left:el.getBoundingClientRect().left,board:document.querySelector('#kanban').getBoundingClientRect().left,top:el.getBoundingClientRect().top,header:document.querySelector('#header').getBoundingClientRect().bottom}));assert.ok(Math.abs(position.left-position.board)<2);assert.ok(position.top>=position.header-1);
   await page.screenshot({path:dir+'/driver-ready-link-mobile.png',fullPage:true});
+  for(const [focus,expected] of [['pickup_today',[today]],['attention',[f.orderId,delayed]]]){
+   await page.locator('[data-view=home]').click();const tile=page.locator('[data-dashboard=driver-focus][data-focus="'+focus+'"]');await tile.waitFor();assert.equal(await tile.locator('strong').textContent(),String(expected.length));await tile.click();
+   await page.waitForFunction(()=>document.querySelector('[data-work-view=orderList]')&&document.activeElement===document.querySelector('#main h1'));
+   if(focus==='pickup_today')assert.equal(await page.locator('[data-order-table] th').nth(2).textContent(),'Olib ketish sanasi va vaqti');
+   assert.equal(await page.locator('[data-order-table] tbody tr').count(),expected.length);assert.deepEqual((await page.locator('[data-dashboard=open]').evaluateAll(rows=>rows.map(r=>r.dataset.id))).sort(),expected.sort());assert.equal(await page.locator('.heading [data-dashboard=reset]').count(),1);
+  }
+  await page.locator('[data-view=home]').click();await page.locator('[data-dashboard=ready-warehouse]').click();await page.waitForFunction(()=>document.activeElement===document.querySelector('[data-column=ready_for_delivery] h2'));
+
 
   await page.locator('[data-flow=open]').first().click();await page.locator('#detail[open]').waitFor();assert.equal(await page.locator('#detail [data-photo-gallery]').count(),1);assert.equal(await page.locator('#detail [data-photo-gallery]').getAttribute('open'),null);await page.locator('[data-action=close-detail]').click();
   await page.locator('[data-action=logout]').click();await login('operator');assert.equal(await page.locator('[data-column]').count(),10);await page.locator('[data-flow=create]').click();assert.equal(await page.locator('[data-form=create] [name=district_code]').getAttribute('required'),'');assert.equal(await page.locator('[data-form=create] [name=length_m]').count(),0);await page.screenshot({path:dir+'/operator-mobile.png',fullPage:true});await page.locator('[data-action=close-action]').click();await page.locator('[data-language]').selectOption('ru');await page.getByRole('heading',{name:/^Новые заказы/}).waitFor();assert.equal(await page.locator('html').getAttribute('lang'),'ru');await page.locator('[data-flow=create]').click();
