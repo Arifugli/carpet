@@ -31,6 +31,7 @@ body.crm-staff{display:grid;grid-template-columns:200px minmax(0,1fr);min-height
 .home-tile{border:0;background:transparent;padding:0 8px 0 0;text-align:left;min-width:120px}
 .home-tile span{display:block;font-size:13px;color:var(--muted)}.home-tile strong{display:block;font-size:25px;font-weight:600}
 .home-tile[aria-pressed=true]{color:var(--accent);box-shadow:0 2px var(--accent)}
+.home-tile[data-dashboard=ready-warehouse]{color:var(--accent)}.home-tile[data-dashboard=ready-warehouse]:hover>span{text-decoration:underline}
 /* Shared form grid: labels above controls, actions share the control baseline. */
 .work-filters{display:grid;grid-template-columns:minmax(200px,2fr) minmax(150px,1fr) auto;gap:12px;align-items:end;margin:20px 0}
 .work-filters-admin{grid-template-columns:minmax(220px,2fr) minmax(150px,1fr) minmax(150px,1fr) auto}

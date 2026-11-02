@@ -105,6 +105,19 @@ import {t,money,date,localizedName} from './i18n.js';
  document.addEventListener('input',event=>{const f=event.target.closest('[data-flow-measure="pickup.collect"]');if(f){state.quote=null;f.querySelector('button:not([type])').disabled=true;f.querySelector('[data-flow-price]').textContent='';}});
  const originalLogout=modules.logout;modules.logout=()=>{state.view=null;state.generation++;state.filters={};state.columns=[];originalLogout();};
  const originalRender=modules.render;modules.render=async view=>{if(!['kanban','orderMetrics'].includes(view)){state.view=null;state.generation++;}await originalRender(view);};
- window.CRMWorkflow={actions,detail,refresh,refreshMaps:()=>{for(const el of document.querySelectorAll('[data-route-order]')){const o=state.columns.flatMap(c=>c.data).find(x=>x.id===el.dataset.routeOrder)||state.order;if(o)el.innerHTML=modules.driverRoute(o);}}};
+ async function openReady(){
+  if(user()?.role!=='driver')return;
+  delete state.filters.ready_for_delivery;
+  await ui().navigate('kanban');
+  // Run after the dashboard restores the previous board position.
+  await new Promise(resolve=>(window.requestAnimationFrame||((fn)=>setTimeout(fn,0)))(resolve));
+  const board=$('#kanban'),column=$('[data-column="ready_for_delivery"]');
+  if(state.view!=='kanban'||!board||!column)return;
+  board.scrollLeft+=column.getBoundingClientRect().left-board.getBoundingClientRect().left;
+  const top=board.getBoundingClientRect().top-(innerWidth<=950?$('#header').getBoundingClientRect().height:0)-12;
+  if(Math.abs(top)>1)window.scrollTo({top:Math.max(0,window.scrollY+top),behavior:'instant'});
+  const heading=column.querySelector('h2');heading.tabIndex=-1;heading.focus({preventScroll:true});
+ }
+ window.CRMWorkflow={actions,detail,refresh,openReady,refreshMaps:()=>{for(const el of document.querySelectorAll('[data-route-order]')){const o=state.columns.flatMap(c=>c.data).find(x=>x.id===el.dataset.routeOrder)||state.order;if(o)el.innerHTML=modules.driverRoute(o);}}};
  setInterval(()=>{if(user()&&!document.hidden&&!$('#action').open&&!$('#detail').open)refresh();},15000);
 })();

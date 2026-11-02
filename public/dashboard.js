@@ -34,7 +34,7 @@ import {t,money,date,localizedName} from './i18n.js';
    if(v.offset>=data.count&&v.offset>0){v.offset=Math.max(0,Math.floor(Math.max(0,data.count-1)/50)*50);return load();}
    if($('#home-tiles')){
     const keys=['warehouse','washer','packer'].includes(user().role)?['attention']:['attention','pickup_today','ready'];
-    $('#home-tiles').innerHTML=keys.map(k=>'<button type="button" class="home-tile" data-dashboard="focus" data-focus="'+k+'" aria-pressed="'+(v.filters.focus===k)+'"><span>'+esc(t('tile_'+k))+'</span><strong>'+data.tiles[k]+'</strong></button>').join('');
+    $('#home-tiles').innerHTML=keys.map(k=>{const warehouse=k==='ready'&&user().role==='driver';return '<button type="button" class="home-tile" data-dashboard="'+(warehouse?'ready-warehouse':'focus')+'" data-focus="'+k+'" '+(warehouse?'title="'+esc(t('ready_for_delivery'))+'"':'aria-pressed="'+(v.filters.focus===k)+'"')+'><span>'+esc(t('tile_'+k))+(warehouse?' <b aria-hidden="true">→</b>':'')+'</span><strong>'+data.tiles[k]+'</strong></button>';}).join('');
    }
    document.querySelectorAll('[data-dashboard=scope]').forEach(b=>b.setAttribute('aria-pressed',String((v.filters.scope||'all')===b.dataset.scope)));
    $('#work-results').innerHTML=(data.totals?stageTotals(data.totals):'')+(view==='clients'?clientTable(data.data):orderTable(data.data));
@@ -65,6 +65,7 @@ import {t,money,date,localizedName} from './i18n.js';
   const b=e.target.closest('[data-dashboard]');if(!b||b.disabled)return;const action=b.dataset.dashboard;
   try{
    if(action==='open')await ui().openOrder(b.dataset.id);
+   if(action==='ready-warehouse'&&user().role==='driver')await window.CRMWorkflow.openReady();
    if(action==='client')await ui().openClient(b.dataset.id,active().filters.branch_id);
    if(action==='create')ui().newOrder();
    if(action==='scan')await modules.openScan();
