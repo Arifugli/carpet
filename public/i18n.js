@@ -731,7 +731,9 @@ export const dictionaries={
     "help_audit": "История изменений: кто, когда и какие данные изменил. Записи журнала защищены от редактирования.",
     "help_queue": "Неотправленные действия и фотографии на этом устройстве. После восстановления связи их можно отправить повторно.",
     "homeStageHint": "Здесь заказы вашего этапа. Поиск и фильтры помогают выбрать нужные.",
-    "homeDriverHint": "Новые и готовые заказы, ваши заборы и доставки. Ваши завершённые доставки доступны в режиме «Все заказы»."
+    "homeDriverHint": "Новые и готовые заказы, ваши заборы и доставки. Ваши завершённые доставки доступны в режиме «Все заказы».",
+    "focusHint_attention": "Просроченные заказы и отложенные доставки, доступные вам по роли.",
+    "focusHint_pickup_today": "Ваши запланированные заборы на сегодня, которые ещё не отмечены как забранные."
   },
   "uz": {
     "kanban": "Kanban",
@@ -1465,7 +1467,9 @@ export const dictionaries={
     "help_audit": "O‘zgarishlar tarixi: kim, qachon va qaysi ma’lumotni o‘zgartirgan. Jurnal yozuvlari tahrirdan himoyalangan.",
     "help_queue": "Ushbu qurilmada yuborilmagan amallar va suratlar. Aloqa tiklangach, qayta yuborish mumkin.",
     "homeStageHint": "Bu yerda bosqichingizdagi buyurtmalar bor. Qidiruv va filtrlar keraklisini tanlashga yordam beradi.",
-    "homeDriverHint": "Yangi va tayyor buyurtmalar, sizning olib ketish va yetkazishlaringiz. Yakunlangan yetkazishlaringiz «Barcha buyurtmalar»da ko‘rsatiladi."
+    "homeDriverHint": "Yangi va tayyor buyurtmalar, sizning olib ketish va yetkazishlaringiz. Yakunlangan yetkazishlaringiz «Barcha buyurtmalar»da ko‘rsatiladi.",
+    "focusHint_attention": "Rolingiz bo‘yicha ko‘rishingiz mumkin bo‘lgan muddati o‘tgan buyurtmalar va kechiktirilgan yetkazishlar.",
+    "focusHint_pickup_today": "Bugunga rejalashtirilgan, hali olib ketilmagan buyurtmalaringiz."
   }
 };
 const LANGUAGE_KEY='crm_locale';

@@ -21,6 +21,15 @@ test('DOM + HTTP + SQL: водитель действует в боковой к
   b=await browser(f);const {d,w,login,wait,submit}=b;
   const open=async()=>{d.querySelector('[data-card="'+f.orderId+'"] [data-flow=open]').click();await wait(()=>d.querySelector('#detail').open);};
   await login('driver');assert.equal(d.querySelectorAll('[data-column]').length,6);
+  await w.crmUI.navigate('home');await wait(()=>d.querySelector('[data-dashboard=driver-focus]'));
+  for(const focus of ['attention','pickup_today']){
+   const tile=d.querySelector('[data-dashboard=driver-focus][data-focus="'+focus+'"]');assert.equal(tile.disabled,false);assert.equal(tile.querySelector('strong').textContent,'0');tile.click();
+   await wait(()=>d.querySelector('[data-work-view=orderList]')&&d.activeElement===d.querySelector('#main h1'));
+   assert.equal(d.querySelectorAll('[data-order-table] tbody tr').length,0);assert.ok(d.querySelector('.work-hint'));assert.ok(d.querySelector('.heading [data-dashboard=reset]'));
+   await w.crmUI.navigate('home');await wait(()=>d.querySelector('[data-dashboard=driver-focus]'));
+  }
+  await w.crmUI.navigate('kanban');
+
   await open();d.querySelector('[data-command="pickup.claim"]').click();await wait(()=>d.querySelector('[data-flow-command]'));d.querySelector('[name=pickup_at]').value='2026-11-02T10:00';submit('[data-flow-command]');await wait(()=>!d.querySelector('#action').open);await open();await wait(()=>d.querySelector('[data-command="pickup.collect"]'));
   const items=(await f.sql.query('select id from order_items where order_id=$1',[f.orderId])).rows;for(const i of items)await call(f.sql,'register_order_photo',[i.id,f.orderId+'/'+i.id+'/'+randomUUID()+'.jpg','intake',ids.driver,null]);await f.db.rpc('crm_measurements',{oid:f.orderId,u:ids.driver});
   d.querySelector('[data-command="pickup.collect"]').click();await wait(()=>d.querySelector('[data-intake-composition]'));submit('[data-intake-composition]');await wait(()=>d.querySelector('[data-flow-measure]'));let form=d.querySelector('[data-flow-measure]');form.querySelector('[name=length_m]').value='3';form.querySelector('[name=width_m]').value='2';form.querySelector('[data-flow=preview]').click();await wait(()=>form.querySelector('[data-flow-price]').textContent.includes('162'));submit(form);
