@@ -48,3 +48,11 @@ GET `/health` — процесс; GET `/ready` — применённая схе
 POST /orders допускает отсутствие items или пустой массив: заявка без изделий, pricing_state=awaiting_measurements. Форма оператора передаёт телефон, ФИО, структурированный адрес и контекст филиала/источника.
 
 POST /api/orders/:id/pickup-items, Idempotency-Key: UUID, тело {items:[{item_id?:UUID,tariff:carpet|blanket|tushak,quantity:integer,note?:string}],flags?:{urgent?:boolean,stains?:boolean,pensioner?:boolean}}. Только назначенный driver, pickup_planned/pending до оценки. Ковры — по одной строке, количество каждой 1; одеяла/тушаки — 1–1000, до 30 строк. Запись, удаление черновых позиций и журнал в одной транзакции с блокировкой заказа. Позиции с фото/замерами защищены. Ответ содержит постоянные IDs и ставки. Далее прежние pickup-quote → загрузка фото → pickup.collect. Пустой забор запрещён БД. /ready проверяет схему 18.
+
+## Очереди и карточки (0019)
+
+GET `/api/home` и `/api/order-table`: прежние boardFilter + status, client_id и focus=attention|pickup_today|ready. limit по умолчанию 50 (максимум 100), offset. RPC crm_queue проверяет активный профиль/видимость заказа; домашняя очередь исключает delivered/cancelled. Ответ data/count/totals/tiles/limit/offset/next_offset/previous_offset/generated_at. Итоги считают всю выборку, не одну страницу. Период относится к stage_entered_at, время «сегодня» — Asia/Tashkent.
+
+GET `/api/client-list`: право clients, q/branch_id/limit/offset. RPC crm_clients возвращает контакты, число доступных заказов и постраничный список. GET `/api/client-card/:id?branch_id=UUID`: crm_client_card возвращает данные клиента, до 10 адресов (актуальный первым), до 10 последних видимых заказов и orders_count. Производственные роли/водитель доступа к этим endpoints не получают.
+
+GET `/api/board`: по умолчанию 15 карточек этапа; прежние фильтры и счётчики сохранены. Карточки очереди/канбана содержат только необходимые поля, без track_token, delete_snapshot или pricing_snapshot; телефон производственных ролей маскируется. Новые RPC закрыты anon/authenticated, EXECUTE явно выдан service_role. /ready требует схему 19. Никакая миграция не выполняется при старте.

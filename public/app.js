@@ -30,9 +30,14 @@ function logout() {
  $('#detail').close();$('#detail').innerHTML='';$('#action').close();$('#action').innerHTML='';loginScreen();
 }
 function shell() {
- document.title=t('title');
- document.documentElement.lang=locale;
- $('#header').innerHTML=`<div class="bar"><div class="brand">${esc(t('title'))}<small>${esc(t('subtitle'))}</small></div><div class="header-controls"><label class="language-switch" for="interface-language">${esc(t('language'))}<select id="interface-language" data-language><option value="ru" lang="ru" ${locale==='ru'?'selected':''}>Русский</option><option value="uz" lang="uz" ${locale==='uz'?'selected':''}>O‘zbekcha</option></select></label>${state.user?`<div class="actions"><div class="user">${esc(state.user.full_name)}<small>${esc(t(state.user.role))}</small></div>${button('logout','logout')}</div>`:''}</div></div>${state.user?`<nav>${[...(window.crmModules?.views(state.user)||[]),...(has('trash')?['requests','trash']:[]),...(has('audit')?['audit']:[])].map(view=>`<button type="button" data-view="${view}" aria-current="${state.view===view}">${esc(t(view))}</button>`).join('')}</nav>`:''}`;
+ document.title=t('title');document.documentElement.lang=locale;document.body.classList.toggle('crm-staff',!!state.user);
+ const views=state.user?[...(window.crmModules?.views(state.user)||[]),...(has('trash')?['requests','trash']:[]),...(has('audit')?['audit']:[])]:[];
+ const primary=[['home','home'],['tasks','tasks'],['clients','clients'],['orderList','orders'],['reports','analyticsNav']].filter(([key])=>views.includes(key));
+ const omitted=new Set([...primary.map(([key])=>key),'kanban']);const more=views.filter(v=>!omitted.has(v));
+ const navButton=(view,label)=>'<button type="button" data-view="'+view+'" aria-current="'+(state.view===view||(view==='orderList'&&state.view==='kanban')?'page':'false')+'">'+esc(t(label||view))+'</button>';
+ $('#header').innerHTML='<div class="bar"><div class="brand">'+esc(t('title'))+'<small>'+esc(t('subtitle'))+'</small></div><div class="header-controls"><label class="language-switch" for="interface-language">'+esc(t('language'))+'<select id="interface-language" data-language><option value="ru" '+(locale==='ru'?'selected':'')+'>Русский</option><option value="uz" '+(locale==='uz'?'selected':'')+'>O‘zbekcha</option></select></label>'+(state.user?'<div class="actions"><div class="user">'+esc(state.user.full_name)+'<small>'+esc(t(state.user.role))+'</small></div>'+button('logout','logout')+'</div>':'')+'</div></div>'+
+ (state.user?'<nav aria-label="'+esc(t('navigation'))+'">'+primary.map(([view,label])=>navButton(view,label)).join('')+
+ (more.length?'<details class="nav-more"><summary>'+esc(t('moreSections'))+'</summary>'+more.map(view=>navButton(view)).join('')+'</details>':'')+'</nav>':'');
 }
 function loginScreen() {
  shell();
@@ -101,26 +106,72 @@ function renderList() {
  }).join('')}</div>`;
  $('#pagination').innerHTML=state.cursor?button('more','more','class="more"'):'';
 }
-async function openDetail(id) {
- const trash=state.view==='trash',o=await api(`${trash?'/trash':'/orders'}/${id}`);
- state.selected={...o,isTrash:trash};
- const d=trash?o.delete_snapshot?.order||o:o,client=trash?o.delete_snapshot?.client:o.client,items=trash?o.delete_snapshot?.items||[]:o.items;
- const closed=['cancelled','delivered'].includes(o.status);
- const cancel=has('cancel')&&!closed;
- const deleteBlocked=Number(o.paid_amount)>0||o.payment_recorded_at||o.washing_started_at||o.status==='delivered';
- $('#detail').innerHTML=`<div class="row dialog-head"><h2>${esc(o.code)}</h2>${button('close','close-detail')}</div>${statusPill(trash?o.deleted_status:o.status)}
-  <div class="detail-grid"><div><small>${esc(t('client'))}</small><strong>${esc(client?.name)}</strong>${esc(client?.phone)}</div><div><small>${esc(t('address'))}</small><strong>${esc(d.address)}</strong></div><div><small>${esc(t('sum'))}</small><strong>${orderPrice(d)}</strong></div><div><small>${esc(t('paid'))}</small><strong>${money(d.paid_amount)}</strong></div></div>
-  ${trash?`<div class="notice"><strong>${esc(t('deletedAt'))}: ${esc(date(o.deleted_at))}</strong><p>${esc(t('by'))}: ${esc(o.delete_snapshot?.actor?.full_name||actor(o.deleted_by))}</p><p>${esc(o.delete_reason)}</p><small>${esc(t('snapshotHint'))}</small></div>`:''}
-  ${o.delete_requested_at?`<div class="notice">${esc(t('requestedAt'))}: ${esc(date(o.delete_requested_at))}<p>${esc(o.delete_request_reason)}</p><small>${esc(actor(o.delete_requested_by))}</small></div>`:''}
-  ${o.cancelled_at?`<div class="notice">${esc(t('cancelledAt'))}: ${esc(date(o.cancelled_at))}<p>${esc(localizedName(state.reasons.find(r=>r.code===o.cancel_reason_code))||o.cancel_reason_code)}: ${esc(o.cancel_comment)}</p><p>${esc(t('workAmount'))}: ${money(o.completed_work_amount)} · ${esc(t('paymentAmount'))}: ${money(o.cancellation_payment_amount)}</p></div>`:''}
-  ${o.restored_at?`<p class="muted">${esc(t('restoredAt'))}: ${esc(date(o.restored_at))} · ${esc(actor(o.restored_by))}</p>`:''}
-  <h3>${esc(t('snapshot'))}</h3>${items.map(i=>`<div class="items">${esc(t('item'))} ${esc(i.seq)} · ${i.length_m!=null?`${esc(i.length_m)} × ${esc(i.width_m)} ${esc(t('unitM'))}`:i.unit==='piece'?`${esc(i.quantity||1)} ${esc(t('piece'))}`:esc(t('notMeasured'))} · ${esc(t(i.tariff_code))}<br>${i.measurement_origin==='pending'&&i.unit==='m2'?esc(t('priceAfterMeasurement')):money(i.price)}${i.note?`<p>${esc(i.note)}</p>`:''}</div>`).join('')}
-  <h3>${esc(t('history'))}</h3><ul>${(o.history||[]).map(h=>`<li>${esc(date(h.created_at))} — ${esc(t(h.status))}${h.note?`<br><small>${esc(text(h.note))}</small>`:''}</li>`).join('')}</ul>
-  ${!trash&&deleteBlocked?`<p class="muted">${esc(t('blockedDeletion'))}</p>`:''}<div class="actions">${trash&&has('restore')?button('restore','restore','class="primary"'):''}${!trash&&cancel?button('cancel','cancel','class="danger"'):''}${!trash&&has('delete')&&!deleteBlocked?button('remove','delete','class="danger"'):''}${!trash&&has('requestDeletion')&&o.status==='new'&&!o.delete_requested_at&&!deleteBlocked?button('requestDeletion','request-deletion'):''}</div>`;
- if(!trash)$('#detail').insertAdjacentHTML('beforeend',(window.crmModules?.photoGallery?.({order_id:o.id})||'')+(window.crmModules?.orderActions?.(o)||''));
- $('#detail').showModal();
- if(!trash)await window.crmModules?.afterOrderDetail?.(o);
+function paneCleanup(){
+ document.body.classList.remove('detail-visible');$('#main').inert=false;$('#header').inert=false;
+ state.detailRequest=(state.detailRequest||0)+1;state.pane=null;state.selected=null;
+ const origin=state.detailOrigin;state.detailOrigin=null;
+ if(origin&&origin.view===state.view)(window.requestAnimationFrame||((fn)=>setTimeout(fn,0)))(()=>{if($('#kanban'))$('#kanban').scrollLeft=origin.left;if(window.scrollY!==origin.y)window.scrollTo(0,origin.y);});
 }
+function closeDetail(){if($('#detail').open)$('#detail').close();paneCleanup();$('#detail').innerHTML='';}
+function showPane(){
+ if(!$('#detail').open){state.detailOrigin={view:state.view,y:window.scrollY,left:$('#kanban')?.scrollLeft||0};document.body.classList.add('detail-visible');if(typeof $('#detail').show==='function')$('#detail').show();else $('#detail').showModal();}
+ const mobile=innerWidth<=950;$('#main').inert=mobile;$('#header').inert=mobile;$('#detail').scrollTop=0;
+}
+function clientMarkup(data){
+ const c=data.client,address=data.addresses.find(a=>a.address===c.address)||data.addresses[0];
+ state.clientDetail=data;
+ return '<div class="client-overview"><h3>'+esc(c.name)+'</h3><p><a href="tel:'+esc(c.phone)+'">'+esc(c.phone)+'</a></p><p>'+esc(c.address)+'</p>'+
+  (has('create')?button('newOrder','new-order-client','class="primary"'):'')+
+  '<details><summary>'+esc(t('addresses'))+'</summary>'+data.addresses.map(a=>'<p>'+esc(a.address)+'</p>').join('')+'</details>'+
+  '<details open><summary>'+esc(t('recentOrders'))+' · '+data.orders_count+'</summary><div class="client-order-list">'+data.orders.map(o=>'<button type="button" class="client-order-row" data-action="details" data-id="'+o.id+'"><strong>'+esc(o.code)+'</strong><span>'+esc(t(o.status))+'</span><span>'+orderPrice(o)+'</span></button>').join('')+'</div>'+
+  (data.orders_count>data.orders.length?button('allClientOrders','client-orders','data-id="'+c.id+'"'):'')+'</details>'+
+  (window.crmModules?.photoGallery?.({client_id:c.id,branch_id:data.branch_id,client:true})||'')+'</div>';
+}
+async function openClient(id,branch){
+ if(!has('clients'))return;const request=state.detailRequest=(state.detailRequest||0)+1;
+ const data=await api('/client-card/'+id+(branch?'?branch_id='+encodeURIComponent(branch):''));
+ if(request!==state.detailRequest)return;state.selected=null;state.pane={kind:'client',id,branch};
+ $('#detail').innerHTML='<div class="row dialog-head"><h2 id="detail-title">'+esc(t('client'))+'</h2>'+button('close','close-detail')+'</div>'+clientMarkup(data);
+ showPane();
+}
+async function openDetail(id) {
+ const request=state.detailRequest=(state.detailRequest||0)+1,trash=state.view==='trash',o=await api((trash?'/trash':'/orders')+'/'+id);
+ if(request!==state.detailRequest)return;state.selected={...o,isTrash:trash};state.pane={kind:'order',id,trash};
+ const d=trash?o.delete_snapshot?.order||o:o,client=trash?o.delete_snapshot?.client:o.client,items=trash?o.delete_snapshot?.items||[]:o.items;
+ const closed=['cancelled','delivered'].includes(o.status),deleteBlocked=Number(o.paid_amount)>0||o.payment_recorded_at||o.washing_started_at||o.status==='delivered';
+ const primary=!trash?(window.CRMWorkflow?.actions(o)||''):'';
+ let extras=!trash?(window.crmModules?.orderActions?.(o)||''):'';
+ if(primary&&extras.startsWith(primary))extras=extras.slice(primary.length);
+ const dangerous='<div class="actions">'+(trash&&has('restore')?button('restore','restore','class="primary"'):'')+
+  (!trash&&has('cancel')&&!closed?button('cancel','cancel','class="danger"'):'')+
+  (!trash&&has('delete')&&!deleteBlocked?button('remove','delete','class="danger"'):'')+
+  (!trash&&has('requestDeletion')&&o.status==='new'&&!o.delete_requested_at&&!deleteBlocked?button('requestDeletion','request-deletion'):'')+'</div>';
+ $('#detail').innerHTML='<div class="row dialog-head"><div><h2 id="detail-title">'+esc(o.code)+'</h2>'+statusPill(trash?o.deleted_status:o.status)+'</div>'+button('close','close-detail')+'</div>'+
+  '<div class="detail-tabs" role="tablist" aria-label="'+esc(t('details'))+'"><button type="button" role="tab" aria-selected="true" data-detail-tab="order">'+esc(t('orderTab'))+'</button>'+
+  (!trash&&has('clients')?'<button type="button" role="tab" aria-selected="false" data-detail-tab="client">'+esc(t('client'))+'</button>':'')+
+  '<button type="button" role="tab" aria-selected="false" data-detail-tab="history">'+esc(t('history'))+'</button></div>'+
+  '<section data-detail-pane="order"><div class="detail-grid"><div><small>'+esc(t('client'))+'</small><strong>'+esc(client?.name)+'</strong>'+esc(client?.phone)+'</div><div><small>'+esc(t('address'))+'</small><strong>'+esc(d.address)+'</strong></div><div><small>'+esc(t('sum'))+'</small><strong>'+orderPrice(d)+'</strong></div><div><small>'+esc(t('paid'))+'</small><strong>'+money(d.paid_amount)+'</strong></div></div>'+
+  (primary?'<div class="stage-action">'+primary+'</div>':'')+
+  '<div data-order-extra>'+
+  (trash?'<details><summary>'+esc(t('snapshot'))+'</summary>'+items.map(i=>'<p>'+esc(t(i.tariff_code))+' · '+esc(i.length_m??i.quantity??'')+' '+(i.length_m?'× '+esc(i.width_m):'')+' · '+money(i.price)+'</p>').join('')+'</details>':(window.crmModules?.photoGallery?.({order_id:o.id})||''))+
+  '</div><details class="secondary-actions"><summary>'+esc(t('moreActions'))+'</summary>'+extras+dangerous+
+  (!trash&&deleteBlocked?'<p class="muted">'+esc(t('blockedDeletion'))+'</p>':'')+'</details></section>'+
+  '<section data-detail-pane="client" hidden></section>'+
+  '<section data-detail-pane="history" hidden>'+
+  (trash?'<div class="notice">'+esc(t('deletedAt'))+': '+esc(date(o.deleted_at))+'<p>'+esc(o.delete_reason)+'</p></div>':'')+
+  (o.cancelled_at?'<div class="notice">'+esc(t('cancelledAt'))+': '+esc(date(o.cancelled_at))+'<p>'+esc(o.cancel_comment)+'</p></div>':'')+
+  '<ul class="status-history">'+(o.history||[]).map(h=>'<li>'+esc(date(h.created_at))+' — '+esc(t(h.status))+(h.note?'<small>'+esc(text(h.note))+'</small>':'')+'</li>').join('')+'</ul></section>';
+ showPane();if(!trash)await window.crmModules?.afterOrderDetail?.(o);
+}
+async function changeDetailTab(tab){
+ $('#detail').querySelectorAll('[data-detail-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.detailTab===tab)));
+ $('#detail').querySelectorAll('[data-detail-pane]').forEach(p=>p.hidden=p.dataset.detailPane!==tab);
+ if(tab==='client'&&state.selected&&has('clients')){
+  const o=state.selected,target=$('#detail [data-detail-pane=client]');if(target.dataset.loaded)return;target.textContent=t('loading');
+  try{const data=await api('/client-card/'+o.client_id+'?branch_id='+encodeURIComponent(o.branch_id));if(state.selected?.id!==o.id||!target.isConnected)return;target.innerHTML=clientMarkup(data);target.dataset.loaded='true';}catch(e){if(target.isConnected)target.textContent=e.message;}
+ }
+}
+
 function actionForm(kind) {
  const o=state.selected;
  const title={cancel:'cancel',delete:'remove','request-deletion':'requestDeletion'}[kind];
@@ -187,16 +238,19 @@ document.addEventListener('click',async event=>{
  const el=event.target.closest('button');if(!el||el.disabled)return;
  try {
   if(el.dataset.view){state.view=el.dataset.view;state.filters={};await listScreen();return;}
+  if(el.dataset.detailTab){await changeDetailTab(el.dataset.detailTab);return;}
   const action=el.dataset.action;
   if(action==='logout')logout();
   if(action==='refresh')await loadList();
   if(action==='more'){el.disabled=true;await loadList(true);}
   if(action==='details')await openDetail(el.dataset.id);
-  if(action==='close-detail')$('#detail').close();
+  if(action==='close-detail')closeDetail();
   if(action==='close-action')$('#action').close();
   if(['cancel','delete','request-deletion'].includes(action))actionForm(action);
   if(action==='restore'){el.disabled=true;await api(`/orders/${state.selected.id}/restore`,{method:'POST',body:{}});await finishAction();}
   if(action==='new-order')newOrder();
+  if(action==='new-order-client'){const data=state.clientDetail,a=data.addresses.find(x=>x.address===data.client.address)||data.addresses[0]||{};newOrder({...a,name:data.client.name,phone:data.client.phone,...(data.branch_id?{branch_id:data.branch_id}:{})});}
+  if(action==='client-orders'){const id=el.dataset.id;closeDetail();await window.CRMDashboard.clientOrders(id);}
   if(action==='discard-order-draft'){const previous=sessionStorage.getItem(orderDraftKey());sessionStorage.removeItem(orderDraftKey());newOrder({},true);if(previous){$('#action form').insertAdjacentHTML('afterbegin',`<button type="button" data-action="undo-order-draft">${esc(t('undo'))}</button>`);$('#action form')._discardedDraft=previous;}}
   if(action==='undo-order-draft'){sessionStorage.setItem(orderDraftKey(),el.closest('form')._discardedDraft);newOrder();}
   if(action==='add-item'&&$('#order-items').children.length<30)$('#order-items').insertAdjacentHTML('beforeend',itemFields());
@@ -213,7 +267,7 @@ document.addEventListener('change',async event=>{
   const next=event.target.value;if(next===locale)return;
   const login=$('[data-form=login]'),draft=login?{email:login.elements.email.value,password:login.elements.password.value}:null;
   if(!setLocale(next))return;
-  try{if(location.pathname.startsWith('/track/'))await start();else if(state.user)await listScreen();else{loginScreen();if(draft)for(const [key,value]of Object.entries(draft))$('[data-form=login]').elements[key].value=value;}}
+  try{if(location.pathname.startsWith('/track/'))await start();else if(state.user){const pane=state.pane;await listScreen();if(pane?.kind==='order')await openDetail(pane.id);else if(pane?.kind==='client')await openClient(pane.id,pane.branch);}else{loginScreen();if(draft)for(const [key,value]of Object.entries(draft))$('[data-form=login]').elements[key].value=value;}}
   catch(e){toast(e.message);}return;
  }
  const form=event.target.closest('[data-form=create]');if(!form||event.target.name!=='branch_id')return;
@@ -240,6 +294,10 @@ async function start() {
  if(!state.token)return loginScreen();
  try{await initializeStaff();}catch(e){logout();toast(e.message);}
 }
-window.crmUI={api,user:()=>state.user,has,toast,openOrder:openDetail,newOrder,navigate:async view=>{state.view=view;state.filters={};await listScreen();},refresh:()=>listScreen(),download:async(path,filename)=>{const response=await fetch(`/api${path}`,{headers:{Authorization:`Bearer ${state.token}`}});if(!response.ok){const data=await response.json();throw new Error(data.error||t('error'));}const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return {nextCursor:response.headers.get('X-Next-Cursor')};},print:async path=>{const win=window.open('','_blank');if(!win)throw Error(t('popupBlocked'));try{const response=await fetch(`/api${path}`,{headers:{Authorization:`Bearer ${state.token}`}});if(!response.ok){const data=await response.json();throw Error(data.error||t('error'));}const html=await response.text();win.document.open();win.document.write(html);win.document.close();win.addEventListener('load',()=>win.print(),{once:true});}catch(e){win.close();throw e;}}};
+window.crmUI={api,user:()=>state.user,has,toast,openOrder:openDetail,openClient,closeDetail,newOrder,navigate:async view=>{state.view=view;state.filters={};await listScreen();},refresh:()=>listScreen(),download:async(path,filename)=>{const response=await fetch(`/api${path}`,{headers:{Authorization:`Bearer ${state.token}`}});if(!response.ok){const data=await response.json();throw new Error(data.error||t('error'));}const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return {nextCursor:response.headers.get('X-Next-Cursor')};},print:async path=>{const win=window.open('','_blank');if(!win)throw Error(t('popupBlocked'));try{const response=await fetch(`/api${path}`,{headers:{Authorization:`Bearer ${state.token}`}});if(!response.ok){const data=await response.json();throw Error(data.error||t('error'));}const html=await response.text();win.document.open();win.document.write(html);win.document.close();win.addEventListener('load',()=>win.print(),{once:true});}catch(e){win.close();throw e;}}};
+$('#detail').setAttribute('aria-labelledby','detail-title');
+$('#detail').addEventListener('close',()=>{if(!$('#detail').open)paneCleanup();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#detail').open&&!$('#action').open){e.preventDefault();closeDetail();}});
+window.addEventListener('resize',()=>{if($('#detail').open){const mobile=innerWidth<=950;$('#main').inert=mobile;$('#header').inert=mobile;}});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 start();

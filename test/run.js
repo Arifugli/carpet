@@ -14,3 +14,4 @@ import './release-maintenance.test.js';
 import './delivery-pricing.test.js';
 import './i18n.test.js';
 import './intake-items.test.js';
+import './dashboard.test.js';

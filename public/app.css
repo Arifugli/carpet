@@ -13,3 +13,69 @@ header{background:var(--surface);border-top:6px solid var(--accent);border-botto
 
 .photo-gallery{padding:14px;border:1px solid #d9deef;border-radius:12px;margin:12px 0}.photo-gallery summary{cursor:pointer;font-weight:600;color:#2a3990;min-height:28px}.photo-gallery [data-gallery-content]{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.photo-card{margin:12px 0}.photo-card img{display:block;width:100%;height:210px;object-fit:contain;background:#f5f6fa;border-radius:8px}.pickup-state{font-weight:600;color:#2a3990}
 .kanban{display:flex;align-items:flex-start;gap:1rem;overflow-x:auto;padding:0 0 1rem;scroll-snap-type:x proximity}.kanban-column{flex:0 0 325px;max-width:calc(100vw - 2rem);background:#f2f4f9;border:1px solid #d7dded;border-radius:14px;padding:12px;scroll-snap-align:start}.kanban-column>header{position:static;background:transparent;padding:0}.kanban-column h2{font-size:1.15rem;margin:.25rem 0 .75rem}.stage-totals{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin:.5rem 0 1rem}.stage-totals div{padding:.35rem;background:#fff;border-radius:6px}.stage-totals dt{font-size:.8rem;color:#606b84}.stage-totals dd{font-weight:700;margin:0}.stage-totals .stage-money{grid-column:1/-1}.column-filter{margin-bottom:1rem}.column-filter form{display:grid;gap:.5rem;margin:.7rem 0}.column-filter input,.column-filter select{width:100%;min-height:42px}.flow-card{margin:.7rem 0;padding:12px}.flow-card h3{margin:.25rem 0}.flow-card .actions{gap:.4rem}.flow-card button{padding:10px;min-height:44px}.district-pink{border:2px solid #e998b3;background:#fff0f6}.flow-card p{overflow-wrap:anywhere}.flow-actions:empty{display:none}[data-flow-measure] fieldset{margin:1rem 0;border:1px solid #d7dded;border-radius:10px;padding:1rem}[data-flow-measure] label,[data-flow-command] label{display:block;margin:.6rem 0}[data-flow-measure] input,[data-flow-command] input{width:100%}[data-driver-field] select{width:100%;min-height:130px}#order-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem}@media(max-width:480px){.kanban-column{flex-basis:calc(100vw - 2rem)}.kanban{gap:.7rem}}
+
+/* Work dashboard and contextual side panel. */
+body.crm-staff{display:grid;grid-template-columns:180px minmax(0,1fr);min-height:100dvh}
+.crm-staff>#header{grid-column:1;grid-row:1 / 3;border-top:0;border-right:1px solid var(--line);min-width:0}
+.crm-staff>#header .bar{padding:22px 14px;display:flex;flex-direction:column;align-items:stretch;gap:18px}
+.crm-staff .brand{font-size:19px}.crm-staff .header-controls{margin:0;display:grid;gap:12px;justify-content:stretch}
+.crm-staff .language-switch,.crm-staff .language-switch select{min-width:0;width:100%}
+.crm-staff .header-controls .actions{align-items:center}.crm-staff .user{max-width:100%;overflow-wrap:anywhere}
+.crm-staff nav{display:grid;max-width:none;padding:0 10px 20px;overflow:visible;gap:5px}
+.crm-staff nav>button,.nav-more>button{text-align:left;white-space:normal}
+.crm-staff nav [aria-current=page]{background:var(--soft);color:var(--accent)}
+.nav-more{margin-top:10px;border-top:1px solid var(--line);padding-top:12px}.nav-more summary{padding:10px 12px;color:var(--muted)}
+.nav-more>button{display:block;width:100%;margin-top:4px}
+.crm-staff>#main{grid-column:2;grid-row:1 / 3;max-width:none;min-width:0;width:100%;padding:24px 26px}
+.home-tiles{display:flex;gap:25px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:4px 0 20px;margin-bottom:20px}
+.home-tile{border:0;background:transparent;padding:0 8px 0 0;text-align:left;min-width:120px}
+.home-tile span{display:block;font-size:13px;color:var(--muted)}.home-tile strong{display:block;font-size:25px;font-weight:600}
+.home-tile[aria-pressed=true]{color:var(--accent);box-shadow:0 2px var(--accent)}
+.work-filters{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:20px 0}
+.work-filters>label{min-width:145px;flex:1;margin:0}.work-search{flex:2!important;min-width:190px!important}
+.work-extra-filters{flex-basis:100%;margin-top:6px}.work-extra-filters>summary,.board-help>summary{color:var(--muted);font-size:13px}
+.work-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:12px 0}
+.work-mode{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 18px;flex-wrap:wrap}
+.work-mode button[aria-pressed=true]{background:var(--soft);color:var(--accent);border-color:var(--accent)}
+.work-table{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.work-table table{width:100%;border-collapse:collapse;min-width:600px}.work-table th,.work-table td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+.work-table th{font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap}
+.work-table td{font-size:14px}.work-table td small{display:block;font-size:12px;margin-top:3px}
+.work-table tr:last-child td{border-bottom:0}.work-table .amount{font-variant-numeric:tabular-nums;white-space:nowrap}
+.text-button{padding:0;border:0;border-radius:0;background:transparent;min-height:32px;color:var(--accent);text-align:left}
+.text-button strong{font-weight:550}.overdue{color:var(--danger)}.overdue small{color:inherit}
+.work-totals{font-size:13px;color:var(--muted);margin:12px 0}.work-totals summary{color:var(--ink);margin-bottom:6px}
+.work-pagination{margin-top:14px;font-size:13px;color:var(--muted)}
+.board-help{margin:10px 0}.board-help p{font-size:13px;margin:8px 0}.kanban-column{flex:0 0 295px;padding:10px;align-self:flex-start}
+.kanban-column>header{border-top:0;border-bottom:1px solid var(--line);padding:0 0 9px;margin-bottom:10px}
+.stage-heading{display:flex;align-items:start;justify-content:space-between;gap:10px}.stage-heading h2{font-size:16px;margin:0}
+.stage-heading>strong{font-size:16px;font-variant-numeric:tabular-nums}
+.stage-summary{font-size:12px;margin:7px 0 0}.stage-summary summary{color:var(--muted)}
+.stage-summary .stage-totals{display:block;font-size:12px}.stage-summary .stage-totals div{display:flex;justify-content:space-between;gap:8px;padding:2px 0;background:transparent}
+.stage-summary .stage-totals dd{font-weight:500}.column-filter summary{font-size:12px;color:var(--muted)}
+.card.compact-order{padding:0;gap:0;margin:8px 0}.compact-order-open{display:block;width:100%;border:0;border-radius:10px;padding:11px!important;text-align:left;min-height:0;margin:0!important;background:transparent}
+.compact-order-top,.compact-order-bottom{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.compact-order-top>strong{font-size:14px}.compact-order-top small{font-size:11px}.compact-client{display:block;font-weight:550;font-size:14px;margin:4px 0;overflow-wrap:anywhere}
+.compact-address{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;color:var(--muted);margin-bottom:6px}
+.compact-order-bottom{font-size:12px}.compact-order-bottom small{font-size:11px}.kanban-column .empty{padding:18px 4px;font-size:12px}
+#detail[open]{position:fixed;inset:0 0 0 auto;width:480px;height:100dvh;max-height:100dvh;margin:0;padding:20px;border-radius:0;border-left:1px solid var(--line);box-shadow:-8px 0 28px #171a2e1a;z-index:20}
+body.detail-visible.crm-staff{padding-right:480px}
+#detail .dialog-head{top:-20px;padding-top:4px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.detail-tabs{display:flex;gap:5px;border-bottom:1px solid var(--line);margin:0 0 16px;padding-bottom:9px}
+.detail-tabs button{border:0;flex:1;padding:8px 10px;min-height:40px;font-size:13px}
+.detail-tabs [aria-selected=true]{background:var(--soft);color:var(--accent)}
+#detail [data-detail-pane][hidden]{display:none}
+#detail details{padding:12px 0;border-bottom:1px solid var(--line)}#detail details>summary{font-weight:550}
+#detail .photo-gallery{margin:0;border-radius:0;border:0;border-bottom:1px solid var(--line)}
+#detail .detail-grid{font-size:14px;margin-bottom:14px}.stage-action:not(:has(button)){display:none}.stage-action .actions{margin:14px 0}.stage-action button{background:var(--accent);color:#fff}
+.secondary-actions{margin-top:6px}.secondary-actions .actions{gap:6px;margin:12px 0}.secondary-actions button{font-size:13px}
+.status-history{font-size:14px}.status-history li{margin:12px 0}.status-history small{display:block}
+.client-order-list{display:grid;gap:0}.client-order-row{display:grid;grid-template-columns:60px 1fr auto;gap:8px;align-items:center;border:0;border-bottom:1px solid var(--line);border-radius:0;text-align:left;font-size:12px;padding:10px 0}
+.client-overview h3{margin:0 0 6px}.client-overview>p{overflow-wrap:anywhere}
+@media(max-width:1150px){body.detail-visible.crm-staff{padding-right:420px}#detail[open]{width:420px}.crm-staff>#main{padding:20px}}
+@media(max-width:950px){body.crm-staff{display:block}body.detail-visible.crm-staff{padding-right:0;overflow:hidden}.crm-staff>#header{border-right:0;border-bottom:1px solid var(--line)}.crm-staff>#header .bar{flex-direction:row;align-items:center;justify-content:space-between;padding:12px 15px;gap:10px}.crm-staff .header-controls{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px}.crm-staff .language-switch{width:auto;min-width:120px}.crm-staff nav{display:flex;gap:5px;flex-wrap:wrap;padding:0 10px 10px}.nav-more{border-top:0;padding:0;margin:0}.nav-more[open]{flex-basis:100%;display:flex;flex-wrap:wrap}.nav-more>button{width:auto;display:inline-block}.crm-staff>#main{padding:18px 14px}#detail[open]{inset:0;width:100%;max-width:100%;padding:18px}.home-tiles{gap:14px}.home-tile{min-width:100px}.kanban-column{flex-basis:285px}#detail .dialog-head{top:-18px}}
+@media(max-width:500px){.crm-staff .brand{font-size:17px}.crm-staff .header-controls .user{display:none}.crm-staff .header-controls .actions button{font-size:12px;padding:8px}.home-tile strong{font-size:23px}.home-tile span{font-size:12px}.work-filters>label{min-width:125px}.work-table th,.work-table td{padding:10px}.client-order-row{grid-template-columns:52px minmax(0,1fr);gap:5px}.client-order-row>span:last-child{grid-column:2}}
+
+
+.crm-staff>#header{position:sticky;top:0;align-self:start;height:100dvh;overflow-y:auto}.detail-grid strong,.work-table td{overflow-wrap:anywhere}
+@media(max-width:950px){.crm-staff>#header{height:auto;overflow:visible;z-index:10}.nav-more[open]{max-height:60dvh;overflow:auto}}

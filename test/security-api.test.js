@@ -34,6 +34,8 @@ test('HTTP: шесть ролей, запрет обхода, валидация
  const f=await workflowServer();try{
   const req=async(path,role='admin',body,method=body?'POST':'GET')=>{const r=await fetch(f.url+'/api'+path,{method,headers:{Authorization:'Bearer '+role,'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,data:await r.json()};};
   assert.equal((await req('/board')).status,200);assert.equal((await req('/board?stage_filters=%7B%7D')).status,200);assert.equal((await req('/board?stage_filters=oops')).status,400);assert.equal((await req('/board?unknown=x')).status,400);
+  assert.equal((await req('/home','operator')).status,200);assert.equal((await req('/order-table?limit=101')).status,400);assert.equal((await req('/home?focus=unknown')).status,400);
+  assert.equal((await req('/client-list','operator')).status,200);assert.equal((await req('/client-list','driver')).status,403);assert.equal((await req('/client-card/not-a-uuid')).status,400);
   for(const role of ['operator','driver','warehouse','washer','packer']){assert.equal((await req('/trash',role)).status,403);assert.equal((await req('/audit-log',role)).status,403);assert.equal((await req('/order-metrics?from=2026-01-01&to=2027-01-01',role)).status,403);}
   assert.equal((await req('/orders/'+f.orderId+'/status','admin',{status:'delivered'})).status,404);assert.equal((await req('/orders/'+f.orderId+'/driver','operator',{driver_id:ids.driver},'PATCH')).status,404);
   assert.equal((await req('/actions/pickup.claim','operator',{order_id:f.orderId,pickup_at:new Date().toISOString()})).status,403);

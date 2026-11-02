@@ -37,11 +37,11 @@ import {t,money,date,localizedName} from './i18n.js';
   forms[`admin.${entity}.update`]={title:'editRecord',command:'admin.update',fields:[['entity','kind','hidden'],...(entity==='reason'?[]:[['id','entity','hidden']]),...fields],readonly};
  }
  for(const action of ['archive','restore'])forms[`admin.${action}`]={title:action==='archive'?'archiveRecord':'restoreRecord',fields:[['entity','kind','hidden'],['id','entity','hidden'],['code','code','hidden'],['branch_id','branch','hidden']],transform:d=>d.entity==='tariff'?{entity:d.entity,code:d.code,branch_id:d.branch_id}:d.entity==='reason'?{entity:d.entity,code:d.code}:{entity:d.entity,id:d.id}};
- const availableViews=u=>[
+ const availableViews=u=>[...new Set([
   ...(u.permissions.includes('clients')?['clients']:[]),...(u.permissions.includes('leads')?['leads']:[]),...(u.permissions.includes('calls')?['calls']:[]),
   ...(u.permissions.includes('tasks')?['tasks']:[]),
   ...(u.permissions.includes('staff')?['adminDesk']:[]),
-  ...state.extra.filter(f=>u.permissions.includes(f.permission)&&(!f.roles||f.roles.includes(u.role))).map(f=>f.key),'queue'];
+  ...state.extra.filter(f=>u.permissions.includes(f.permission)&&(!f.roles||f.roles.includes(u.role))).map(f=>f.key),'queue'])];
  async function prepare(){
   try{state.meta=await ui().api('/workspaces/bootstrap');await window.CRMOffline?.snapshot(user().id,'bootstrap',state.meta).catch(()=>{});}
   catch(e){if(!e.network)throw e;state.meta=await window.CRMOffline?.read(user().id,'bootstrap').catch(()=>null)||state.meta;}

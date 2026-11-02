@@ -10,6 +10,18 @@ const filters=z.object({branch_id:z.string().uuid().optional(),date:z.string().d
 const viewPermissions={bootstrap:'read',client:'clients',leads:'leads',calls:'calls',tasks:'tasks',scan:'read',payments:'read',admin:'staff'};
 export function createWorkspaces(db,config={}){
  const router=Router();
+ const queueFilters=boardFilter.extend({status:z.enum(STATUSES).optional(),client_id:z.string().uuid().optional(),focus:z.enum(['attention','pickup_today','ready']).optional()}).strict();
+ router.get(['/order-table','/home'],allow('read'),async(req,res)=>{
+  const f=queueFilters.parse(req.query);res.json(checked(await db.rpc('crm_queue',{p_filters:f,p_user:req.user.id,p_home:req.path==='/home'})));
+ });
+ router.get('/client-list',allow('clients'),async(req,res)=>{
+  const f=z.object({q:z.string().max(120).optional(),branch_id:z.string().uuid().optional(),offset:z.coerce.number().int().min(0).max(10000000).optional(),limit:z.coerce.number().int().min(1).max(100).optional()}).strict().parse(req.query);
+  res.json(checked(await db.rpc('crm_clients',{p_filters:f,p_user:req.user.id})));
+ });
+ router.get('/client-card/:id',allow('clients'),async(req,res)=>{
+  const id=z.string().uuid().parse(req.params.id),f=z.object({branch_id:z.string().uuid().optional()}).strict().parse(req.query);
+  res.json(checked(await db.rpc('crm_client_card',{p_client:id,p_branch:f.branch_id||null,p_user:req.user.id})));
+ });
  router.get('/board',async(req,res)=>{
   if(!can(req.user,'read'))throw new HttpError(403,'Недостаточно прав');
   const raw=z.object({...boardFilter.shape,stage_filters:z.string().max(12000).optional()}).strict().parse(req.query),{stage_filters,...f}=raw;
