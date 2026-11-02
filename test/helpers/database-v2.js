@@ -5,6 +5,7 @@ export const input={name:'Дилноза',phone:'+998901234567',source:'call_in'
 export async function database({cleanup=true,legacyGrants=false,deliveryPricingFix=true}={}){
  const db=await legacyDatabase({through:'0014_workflow_enums.sql',legacyGrants});try{
   await db.exec('reset role');for(const name of ['0015_order_workflow.sql',...(cleanup?['0016_clear_legacy_orders.sql',...(deliveryPricingFix?['0017_delivery_fee_default.sql']:[])]:[])])await db.exec(await readFile(new URL('../../supabase/migrations/'+name,import.meta.url),'utf8'));
+  if(cleanup)await db.exec(await readFile(new URL('../../supabase/migrations/0018_driver_intake_items.sql',import.meta.url),'utf8'));
   await db.exec('drop function if exists public.test_legacy_order(jsonb,uuid,inet)');
   for(const role of ['warehouse','washer','packer','driver2']){await db.query('insert into auth.users(id) values($1)',[ids[role]]);await db.query("update profiles set role=$1,active=true,full_name=$2,branch_id='01000000-0000-4000-8000-000000000001' where id=$3",[role==='driver2'?'driver':role,role,ids[role]]);}
   await db.exec('set role service_role');return db;

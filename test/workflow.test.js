@@ -13,7 +13,7 @@ test('матрица шести ролей совпадает с SQL; актив
  assert.deepEqual(Object.keys(PERMISSIONS).sort(),['admin','driver','operator','packer','warehouse','washer']);
  const rows=(await db.query('select * from role_permissions order by role')).rows;assert.deepEqual(Object.fromEntries(rows.map(x=>[x.role,x.permissions])),PERMISSIONS);
  assert.equal((await db.query("select count(*) from profiles where active and role::text not in ('operator','driver','warehouse','washer','packer','admin')")).rows[0].count,0);
- assert.equal((await call(db,'crm_ready',[])).schema,16);
+ assert.equal((await call(db,'crm_ready',[])).schema,18);
 });
 test('оператор: обязательны ФИО/область/район/адрес; нет размеров, фото и цены до забора',async()=>{
  for(const bad of [{name:''},{district_code:null},{region_code:'tashkent'},{street:''},{items:[{tariff:'carpet',length_m:3,width_m:2}]}])await denied(create(db,bad));

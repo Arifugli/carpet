@@ -1,0 +1,44 @@
+import {test,before,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {database,create,advance,call,command,measurements,ids,input} from './helpers/database.js';
+import {bookingInput} from '../src/booking.js';
+let db;before(async()=>db=await database());after(async()=>db?.close());
+const save=(id,items,role='driver',flags={},key=crypto.randomUUID())=>call(db,'crm_save_pickup_items',[id,JSON.stringify(items),JSON.stringify(flags),ids[role],key,null]);
+const rows=async id=>(await db.query('select * from order_items where order_id=$1 order by seq',[id])).rows;
+const denied=p=>assert.rejects(p,e=>['42501','55000','23514'].includes(e.code));
+test('заказ без изделий: создаётся оператором, но забрать пустой заказ нельзя',async()=>{
+ assert.deepEqual(bookingInput.parse({...input,items:undefined}).items,[]);
+ const id=await create(db,{items:undefined});assert.equal((await rows(id)).length,0);
+ const o=(await db.query('select total,pricing_state from orders where id=$1',[id])).rows[0];assert.equal(o.total,'0');assert.equal(o.pricing_state,'awaiting_measurements');
+ await advance(db,id,'pickup_planned');await denied(command(db,'pickup.collect',{order_id:id,items:[]},'driver'));
+ await denied(call(db,'crm_pickup_preview',[id,'[]',ids.driver]));
+ assert.equal((await db.query('select pickup_state from orders where id=$1',[id])).rows[0].pickup_state,'pending');
+});
+test('состав вводит только назначенный водитель; повтор не дублирует позиции, ошибка откатывает изменения',async()=>{
+ const id=await create(db,{items:[]});await advance(db,id,'pickup_planned');
+ for(const role of ['operator','warehouse','admin','driver2'])await denied(save(id,[{tariff:'blanket',quantity:1}],role));
+ const key=crypto.randomUUID(),items=[{tariff:'carpet',quantity:1},{tariff:'blanket',quantity:2},{tariff:'tushak',quantity:1}];
+ const first=await save(id,items,'driver',{},key);assert.deepEqual(await save(id,items,'driver',{},key),first);assert.equal((await rows(id)).length,3);
+ await denied(save(id,[{tariff:'carpet',quantity:1}],'driver',{},key));
+ const kept=first.items.map(i=>({item_id:i.id,tariff:i.tariff_code,quantity:i.quantity})),before=await rows(id);
+ await denied(save(id,[...kept,{tariff:'blanket',quantity:1},{tariff:'tushak',quantity:2000}]));assert.deepEqual(await rows(id),before);
+ await denied(save(id,[kept[0],kept[0]]));assert.equal((await rows(id)).length,3);
+ await save(id,[kept[0],kept[1]]);assert.equal((await rows(id)).length,2);
+ await denied(db.query('delete from order_items where order_id=$1',[id]));
+ const q=await call(db,'crm_pickup_preview',[id,JSON.stringify(await measurements(db,id)),ids.driver]);assert.equal(q.total,132000);
+ await advance(db,id,'collected');await denied(save(id,kept));assert.equal((await db.query('select total from orders where id=$1',[id])).rows[0].total,'132000');
+});
+test('защита фото и тарифов: загрузка блокирует удаление/смену вида; черновик не меняет согласованную цену',async()=>{
+ const id=await create(db,{items:[]});await advance(db,id,'pickup_planned');
+ const first=await save(id,[{tariff:'blanket',quantity:1,note:'Беречь край'}]);const item=first.items[0];
+ await call(db,'register_order_photo',[item.id,`${id}/${item.id}/${crypto.randomUUID()}.jpg`,'intake',ids.driver,null]);
+ await denied(save(id,[{tariff:'carpet',quantity:1}]));
+ await denied(save(id,[{item_id:item.id,tariff:'tushak',quantity:1}]));
+ await command(db,'tariff.schedule',{branch_id:first.branch_id,code:'blanket',name:'Одеяло',price_per_m2:50000,unit:'piece',active:true,effective_at:new Date().toISOString()});
+ await save(id,[{item_id:item.id,tariff:'blanket',quantity:2}]);const current=(await rows(id))[0];assert.equal(current.unit_rate,'30000');assert.equal(current.note,'Беречь край');
+ const q=await call(db,'crm_pickup_preview',[id,JSON.stringify(await measurements(db,id)),ids.driver]);assert.equal(q.total,60000);
+ await advance(db,id,'collected');assert.equal((await db.query('select total from orders where id=$1',[id])).rows[0].total,'60000');
+ await denied(save(id,[{item_id:item.id,tariff:'blanket',quantity:3}]));
+ assert.equal((await db.query("select count(*) from audit_log where entity_id=$1 and action='pickup_items_saved'",[id])).rows[0].count,2);
+ for(const role of ['anon','authenticated'])assert.equal((await db.query("select has_function_privilege($1,'public.crm_save_pickup_items(uuid,jsonb,jsonb,uuid,uuid,inet)','execute') ok",[role])).rows[0].ok,false);
+});

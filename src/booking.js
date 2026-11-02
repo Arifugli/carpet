@@ -7,7 +7,7 @@ export const bookingFields={
  name:text(120),phone,address:optional(1000),pickup_date:z.string().date().optional(),pickup_slot:z.string().max(40).default(''),
  source:z.string().regex(/^[a-z0-9_]{1,40}$/).default('call_in'),comment:optional(500),branch_id:z.string().uuid().optional(),zone_code:optional(40),
  region_code:text(40),district_code:text(40),street:text(150),house:text(30),apartment:optional(30),landmark:optional(250),private_house:z.boolean().default(false),promised_at:z.string().datetime({offset:true}).optional(),
- urgent:z.boolean().default(false),stains:z.boolean().default(false),pensioner:z.boolean().default(false),items:z.array(productItem).min(1).max(30),
+ urgent:z.boolean().default(false),stains:z.boolean().default(false),pensioner:z.boolean().default(false),items:z.array(productItem).max(30).default([]),
 };
 export const bookingInput=z.object(bookingFields).strict().superRefine((data,ctx)=>{
  if(data.region_code){
