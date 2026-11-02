@@ -26,6 +26,24 @@ test('DOM + HTTP + SQL: водитель планирует, измеряет, �
   form=d.querySelector('[data-flow-measure]');assert.ok(form.querySelector('[name=length_m]'));assert.ok(form.querySelector('[name=quantity]'));submit(form);await wait(()=>d.querySelector('[data-command="warehouse.to_wash"]'));
  }finally{if(b)await b.close();await f.close();}
 });
+
+test('DOM: язык переключается до входа и после него, сохраняет введённый логин, роль и выбранный раздел',async()=>{
+ const f=await workflowServer();let b;try{
+  b=await browser(f);const {d,w,login,wait}=b;
+  await wait(()=>d.querySelector('[data-form=login]'));
+  d.querySelector('[name=email]').value='operator@example.test';d.querySelector('[name=password]').value='draft-password';
+  const change=async value=>{const el=d.querySelector('[data-language]');el.value=value;el.dispatchEvent(new w.Event('change',{bubbles:true}));await wait(()=>d.documentElement.lang===value);};
+  await change('uz');await wait(()=>d.querySelector('h1')?.textContent==='Xodimlar uchun kirish');
+  assert.equal(d.querySelector('[name=email]').value,'operator@example.test');assert.equal(d.querySelector('[name=password]').value,'draft-password');assert.equal(w.localStorage.getItem('crm_locale'),'uz');
+  await login('operator');assert.equal(d.querySelectorAll('[data-column]').length,10);assert.equal(d.querySelector('[data-column=new] h2').textContent,'Yangi buyurtmalar');
+  d.querySelector('[data-flow=create]').click();await wait(()=>d.querySelector('[data-form=create]'));assert.match(d.querySelector('[data-form=create]').textContent,/Mijozning F.I.Sh./);assert.match(d.querySelector('[name=source]').textContent,/Kiruvchi qo‘ng‘iroq/);assert.match(d.querySelector('[name=region_code]').textContent,/Farg/);
+  d.querySelector('[data-action=close-action]').click();
+  await change('ru');await wait(()=>d.querySelector('[data-column=new] h2')?.textContent==='Новые заказы');
+  assert.equal(d.querySelectorAll('[data-column]').length,10);assert.equal(w.localStorage.getItem('crm_locale'),'ru');assert.equal(d.querySelector('[data-view=adminDesk]'),null);
+  await change('uz');await wait(()=>d.querySelector('[data-column=new] h2')?.textContent==='Yangi buyurtmalar');
+  d.querySelector('[data-action=logout]').click();await wait(()=>d.querySelector('[data-form=login]'));assert.equal(d.documentElement.lang,'uz');assert.deepEqual(Object.keys(w.localStorage),['crm_locale']);
+ }finally{if(b)await b.close();await f.close();}
+});
 test('DOM: оператор — 10 этапов и обязательный район, без замеров/фото; администратор назначает районы/цвет',async()=>{
  const f=await workflowServer();let b;try{b=await browser(f);const {d,login,wait}=b;await login('operator');assert.equal(d.querySelectorAll('[data-column]').length,10);d.querySelector('[data-flow=create]').click();await wait(()=>d.querySelector('[data-form=create]'));const form=d.querySelector('[data-form=create]');assert.equal(form.elements.name.required,true);assert.equal(form.elements.district_code.required,true);assert.ok(form.elements.comment);assert.equal(form.querySelector('[name=length_m]'),null);assert.equal(form.querySelector('input[type=file]'),null);
   d.querySelector('[data-action=close-action]').click();await login('admin');d.querySelector('[data-view=adminDesk]').click();await wait(()=>d.querySelector('[data-form-name="staff.create"]'));d.querySelector('[data-form-name="staff.create"]').click();const staff=d.querySelector('[data-desk-form="staff.create"]');assert.ok(staff.elements.district_codes);assert.ok(staff.elements.driver_color);staff.elements.role.value='driver';staff.elements.role.dispatchEvent(new b.w.Event('change',{bubbles:true}));assert.equal(staff.elements.district_codes.required,true);assert.equal(staff.elements.district_codes.multiple,true);
@@ -33,7 +51,7 @@ test('DOM: оператор — 10 этапов и обязательный ра
 });
 test('DOM: итоговые цифры фильтруются SQL, галерея закрыта по умолчанию, упаковщик получает фото-чек',async()=>{
  const f=await workflowServer();let b;try{await advance(f.sql,f.orderId,'pack_accepted');await f.db.rpc('crm_measurements',{oid:f.orderId,u:ids.admin});b=await browser(f);const {d,login,wait,submit}=b;await login('packer');assert.equal(d.querySelectorAll('[data-column]').length,1);assert.ok(d.querySelector('[data-flow=pack-photo]'));
-  d.querySelector('[data-flow=open]').click();await wait(()=>d.querySelector('[data-photo-gallery]'));assert.equal(d.querySelector('[data-photo-gallery]').open,false);d.querySelector('[data-action=close-detail]').click();
+  d.querySelector('[data-flow=open]').click();await wait(()=>d.querySelector('[data-photo-gallery]'));assert.equal(d.querySelectorAll('#detail [data-photo-gallery]').length,1);const gallery=d.querySelector('[data-photo-gallery]');assert.equal(gallery.open,false);assert.equal(gallery.dataset.url,'/orders/'+f.orderId+'/photos');assert.equal(gallery.querySelectorAll('img').length,0);gallery.open=true;gallery.dispatchEvent(new b.w.Event('toggle'));await wait(()=>gallery.querySelector('[data-gallery-photo]'));assert.ok(gallery.querySelector('[data-gallery-photo]').src.startsWith('https://example.test/private/'));d.querySelector('[data-action=close-detail]').click();
   const filter=d.querySelector('[data-stage-filter]');filter.querySelector('[name=min_price]').value='999999';submit(filter);await wait(()=>!d.querySelector('[data-card]'));assert.equal(d.querySelector('[data-column-totals] dd').textContent,'0');
  }finally{if(b)await b.close();await f.close();}
 });

@@ -1,4 +1,4 @@
-import {t,money,date} from './i18n.js';
+import {t,money,date,locale,setLocale,text,localizedName} from './i18n.js';
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const state={token:sessionStorage.getItem('crm_access_token'),user:null,view:'orders',rows:[],cursor:null,filters:{},reasons:[],staff:[],tariffs:[],selected:null,request:0};
@@ -17,7 +17,7 @@ async function api(path,{method='GET',body,idempotencyKey}={}) {
  let data;try{data=await response.json();}catch{throw Object.assign(new Error(t('networkError')),{network:true});}
  if (!response.ok) {
   if (response.status===401&&state.user) {logout();throw new Error(t('expired'));}
-  throw Object.assign(new Error(data.error||t('error')),{status:response.status,code:data.code,fields:data.fields});
+  throw Object.assign(new Error(text(data.error)||t('error')),{status:response.status,code:data.code,fields:data.fields});
  }
  return data;
 }
@@ -30,7 +30,8 @@ function logout() {
 }
 function shell() {
  document.title=t('title');
- $('#header').innerHTML=`<div class="bar"><div class="brand">${esc(t('title'))}<small>${esc(t('subtitle'))}</small></div>${state.user?`<div class="actions"><div class="user">${esc(state.user.full_name)}<small>${esc(t(state.user.role))}</small></div>${button('logout','logout')}</div>`:''}</div>${state.user?`<nav>${[...(window.crmModules?.views(state.user)||[]),...(has('trash')?['requests','trash']:[]),...(has('audit')?['audit']:[])].map(view=>`<button type="button" data-view="${view}" aria-current="${state.view===view}">${esc(t(view))}</button>`).join('')}</nav>`:''}`;
+ document.documentElement.lang=locale;
+ $('#header').innerHTML=`<div class="bar"><div class="brand">${esc(t('title'))}<small>${esc(t('subtitle'))}</small></div><div class="header-controls"><label class="language-switch" for="interface-language">${esc(t('language'))}<select id="interface-language" data-language><option value="ru" lang="ru" ${locale==='ru'?'selected':''}>Русский</option><option value="uz" lang="uz" ${locale==='uz'?'selected':''}>O‘zbekcha</option></select></label>${state.user?`<div class="actions"><div class="user">${esc(state.user.full_name)}<small>${esc(t(state.user.role))}</small></div>${button('logout','logout')}</div>`:''}</div></div>${state.user?`<nav>${[...(window.crmModules?.views(state.user)||[]),...(has('trash')?['requests','trash']:[]),...(has('audit')?['audit']:[])].map(view=>`<button type="button" data-view="${view}" aria-current="${state.view===view}">${esc(t(view))}</button>`).join('')}</nav>`:''}`;
 }
 function loginScreen() {
  shell();
@@ -110,12 +111,12 @@ async function openDetail(id) {
   <div class="detail-grid"><div><small>${esc(t('client'))}</small><strong>${esc(client?.name)}</strong>${esc(client?.phone)}</div><div><small>${esc(t('address'))}</small><strong>${esc(d.address)}</strong></div><div><small>${esc(t('sum'))}</small><strong>${orderPrice(d)}</strong></div><div><small>${esc(t('paid'))}</small><strong>${money(d.paid_amount)}</strong></div></div>
   ${trash?`<div class="notice"><strong>${esc(t('deletedAt'))}: ${esc(date(o.deleted_at))}</strong><p>${esc(t('by'))}: ${esc(o.delete_snapshot?.actor?.full_name||actor(o.deleted_by))}</p><p>${esc(o.delete_reason)}</p><small>${esc(t('snapshotHint'))}</small></div>`:''}
   ${o.delete_requested_at?`<div class="notice">${esc(t('requestedAt'))}: ${esc(date(o.delete_requested_at))}<p>${esc(o.delete_request_reason)}</p><small>${esc(actor(o.delete_requested_by))}</small></div>`:''}
-  ${o.cancelled_at?`<div class="notice">${esc(t('cancelledAt'))}: ${esc(date(o.cancelled_at))}<p>${esc(state.reasons.find(r=>r.code===o.cancel_reason_code)?.name_ru||o.cancel_reason_code)}: ${esc(o.cancel_comment)}</p><p>${esc(t('workAmount'))}: ${money(o.completed_work_amount)} · ${esc(t('paymentAmount'))}: ${money(o.cancellation_payment_amount)}</p></div>`:''}
+  ${o.cancelled_at?`<div class="notice">${esc(t('cancelledAt'))}: ${esc(date(o.cancelled_at))}<p>${esc(localizedName(state.reasons.find(r=>r.code===o.cancel_reason_code))||o.cancel_reason_code)}: ${esc(o.cancel_comment)}</p><p>${esc(t('workAmount'))}: ${money(o.completed_work_amount)} · ${esc(t('paymentAmount'))}: ${money(o.cancellation_payment_amount)}</p></div>`:''}
   ${o.restored_at?`<p class="muted">${esc(t('restoredAt'))}: ${esc(date(o.restored_at))} · ${esc(actor(o.restored_by))}</p>`:''}
-  <h3>${esc(t('snapshot'))}</h3>${items.map(i=>`<div class="items">${esc(t('item'))} ${esc(i.seq)} · ${i.length_m!=null?`${esc(i.length_m)} × ${esc(i.width_m)} ${esc(t('unitM'))}`:i.unit==='piece'?`${esc(i.quantity||1)} ${esc(t('piece'))}`:esc(t('notMeasured'))} · ${esc(i.tariff_code)}<br>${i.measurement_origin==='pending'&&i.unit==='m2'?esc(t('priceAfterMeasurement')):money(i.price)}${i.note?`<p>${esc(i.note)}</p>`:''}</div>`).join('')}
-  <h3>${esc(t('history'))}</h3><ul>${(o.history||[]).map(h=>`<li>${esc(date(h.created_at))} — ${esc(t(h.status))}${h.note?`<br><small>${esc(h.note)}</small>`:''}</li>`).join('')}</ul>
+  <h3>${esc(t('snapshot'))}</h3>${items.map(i=>`<div class="items">${esc(t('item'))} ${esc(i.seq)} · ${i.length_m!=null?`${esc(i.length_m)} × ${esc(i.width_m)} ${esc(t('unitM'))}`:i.unit==='piece'?`${esc(i.quantity||1)} ${esc(t('piece'))}`:esc(t('notMeasured'))} · ${esc(t(i.tariff_code))}<br>${i.measurement_origin==='pending'&&i.unit==='m2'?esc(t('priceAfterMeasurement')):money(i.price)}${i.note?`<p>${esc(i.note)}</p>`:''}</div>`).join('')}
+  <h3>${esc(t('history'))}</h3><ul>${(o.history||[]).map(h=>`<li>${esc(date(h.created_at))} — ${esc(t(h.status))}${h.note?`<br><small>${esc(text(h.note))}</small>`:''}</li>`).join('')}</ul>
   ${!trash&&deleteBlocked?`<p class="muted">${esc(t('blockedDeletion'))}</p>`:''}<div class="actions">${trash&&has('restore')?button('restore','restore','class="primary"'):''}${!trash&&cancel?button('cancel','cancel','class="danger"'):''}${!trash&&has('delete')&&!deleteBlocked?button('remove','delete','class="danger"'):''}${!trash&&has('requestDeletion')&&o.status==='new'&&!o.delete_requested_at&&!deleteBlocked?button('requestDeletion','request-deletion'):''}</div>`;
- if(!trash)$('#detail').insertAdjacentHTML('beforeend',(window.crmModules?.photoGallery?.({order_id:o.id})||'')+(window.crmModules?.photoGallery?.({client_id:o.client_id,branch_id:o.branch_id,client:true})||'')+(window.crmModules?.orderActions?.(o)||''));
+ if(!trash)$('#detail').insertAdjacentHTML('beforeend',(window.crmModules?.photoGallery?.({order_id:o.id})||'')+(window.crmModules?.orderActions?.(o)||''));
  $('#detail').showModal();
  if(!trash)await window.crmModules?.afterOrderDetail?.(o);
 }
@@ -123,14 +124,14 @@ function actionForm(kind) {
  const o=state.selected;
  const title={cancel:'cancel',delete:'remove','request-deletion':'requestDeletion'}[kind];
  $('#action').innerHTML=`<div class="row dialog-head"><h2>${esc(t(title))} · ${esc(o.code)}</h2>${button('close','close-action')}</div><form data-form="${kind}">
-  ${kind==='cancel'?`<div class="field"><label for="reason_code">${esc(t('cancelReason'))}</label><select id="reason_code" name="reason_code" required><option value="">${esc(t('chooseReason'))}</option>${state.reasons.map(r=>`<option value="${esc(r.code)}">${esc(r.name_ru)}</option>`).join('')}</select></div><div class="field"><label for="comment">${esc(t('comment'))}</label><textarea id="comment" name="comment" maxlength="1000" required></textarea></div><p class="muted">${esc(t('moneyHint'))}</p><div class="two">${field('workAmount','completed_work_amount','number','min="0" max="999999999999" step="1" value="0" required')}${field('paymentAmount','payment_amount','number','min="0" max="999999999999" step="1" value="0" required')}</div>`:`<p class="muted">${esc(t(kind==='delete'?'deleteHint':'requestHint'))}</p><div class="field"><label for="reason">${esc(t('reason'))}</label><textarea id="reason" name="reason" maxlength="500" required>${esc(o.delete_request_reason||'')}</textarea></div>`}
+  ${kind==='cancel'?`<div class="field"><label for="reason_code">${esc(t('cancelReason'))}</label><select id="reason_code" name="reason_code" required><option value="">${esc(t('chooseReason'))}</option>${state.reasons.map(r=>`<option value="${esc(r.code)}">${esc(localizedName(r))}</option>`).join('')}</select></div><div class="field"><label for="comment">${esc(t('comment'))}</label><textarea id="comment" name="comment" maxlength="1000" required></textarea></div><p class="muted">${esc(t('moneyHint'))}</p><div class="two">${field('workAmount','completed_work_amount','number','min="0" max="999999999999" step="1" value="0" required')}${field('paymentAmount','payment_amount','number','min="0" max="999999999999" step="1" value="0" required')}</div>`:`<p class="muted">${esc(t(kind==='delete'?'deleteHint':'requestHint'))}</p><div class="field"><label for="reason">${esc(t('reason'))}</label><textarea id="reason" name="reason" maxlength="500" required>${esc(o.delete_request_reason||'')}</textarea></div>`}
   <div data-error class="error" role="alert"></div><button class="primary">${esc(t('save'))}</button></form>`;
  $('#action').showModal();
 }
 let itemSequence=0;
 function itemFields() {
  const seq=++itemSequence;
- return `<fieldset data-item><legend>${esc(t('product'))}</legend><div class="two"><label>${esc(t('productType'))}<select name="tariff" required>${state.tariffs.map(r=>`<option value="${esc(r.code)}">${esc(r.name)} · ${money(r.price_per_m2)} / ${esc(t(r.unit==='piece'?'piece':'m2'))}</option>`).join('')}</select></label>${field('quantity','quantity','number','min="1" max="30" step="1" value="1" required',`quantity-${seq}`)}</div>${button('removeItem','remove-item')}</fieldset>`;
+ return `<fieldset data-item><legend>${esc(t('product'))}</legend><div class="two"><label>${esc(t('productType'))}<select name="tariff" required>${state.tariffs.map(r=>`<option value="${esc(r.code)}">${esc(localizedName(r))} · ${money(r.price_per_m2)} / ${esc(t(r.unit==='piece'?'piece':'m2'))}</option>`).join('')}</select></label>${field('quantity','quantity','number','min="1" max="30" step="1" value="1" required',`quantity-${seq}`)}</div>${button('removeItem','remove-item')}</fieldset>`;
 }
 function newOrder(prefill={}) {
  $('#action').innerHTML=`<div class="row dialog-head"><h2>${esc(t('newOrder'))}</h2>${button('close','close-action')}</div><form data-form="create">
@@ -194,10 +195,17 @@ document.addEventListener('click',async event=>{
 });
 document.addEventListener('input',event=>{if(event.target.closest('[data-form=create]')&&$('#quote-result'))$('#quote-result').textContent='';});
 document.addEventListener('change',async event=>{
+ if(event.target.matches('[data-language]')){
+  const next=event.target.value;if(next===locale)return;
+  const login=$('[data-form=login]'),draft=login?{email:login.elements.email.value,password:login.elements.password.value}:null;
+  if(!setLocale(next))return;
+  try{if(location.pathname.startsWith('/track/'))await start();else if(state.user)await listScreen();else{loginScreen();if(draft)for(const [key,value]of Object.entries(draft))$('[data-form=login]').elements[key].value=value;}}
+  catch(e){toast(e.message);}return;
+ }
  const form=event.target.closest('[data-form=create]');if(!form||event.target.name!=='branch_id')return;
  const branch=event.target.value;
  try{const meta=await api('/workspaces/bootstrap?'+new URLSearchParams({branch_id:branch}));if(!form.isConnected||form.elements.branch_id.value!==branch)return;state.tariffs=meta.tariffs.filter(t=>t.active);
- for(const el of form.querySelectorAll('[name=tariff]')){const previous=el.value;el.innerHTML=state.tariffs.map(r=>`<option value="${esc(r.code)}">${esc(r.name)} · ${money(r.price_per_m2)} / ${esc(t(r.unit==='piece'?'piece':'m2'))}</option>`).join('');if(state.tariffs.some(r=>r.code===previous))el.value=previous;}
+ for(const el of form.querySelectorAll('[name=tariff]')){const previous=el.value;el.innerHTML=state.tariffs.map(r=>`<option value="${esc(r.code)}">${esc(localizedName(r))} · ${money(r.price_per_m2)} / ${esc(t(r.unit==='piece'?'piece':'m2'))}</option>`).join('');if(state.tariffs.some(r=>r.code===previous))el.value=previous;}
  if($('#quote-result'))$('#quote-result').textContent='';
  }catch(e){toast(e.message);}
 });
