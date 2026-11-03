@@ -7,7 +7,7 @@ import {t,money,date,localizedName,intlLocale} from './i18n.js';
  const user=()=>ui().user(),admin=()=>user()?.role==='admin';
  const btn=(label,action,attrs='')=>'<button type="button" data-cash="'+action+'" '+attrs+'>'+esc(t(label))+'</button>';
  const params=extra=>new URLSearchParams({branch_id:state.branch,day:state.day||today(),...extra});
- const card=(label,value)=>'<div><span>'+esc(t(label))+'</span><strong>'+esc(value)+'</strong></div>';
+ const card=(label,value)=>'<div data-cash-metric="'+label+'"><span>'+esc(t(label))+'</span><strong>'+esc(value)+'</strong></div>';
  const amountText=n=>money(Number(n||0));
  function table(rows){
   return '<div class="table-scroll cash-orders"><table><thead><tr>'+['code','cashDeliveryValue','cashDriverReceived','cashClientDebt'].map(k=>'<th>'+esc(t(k))+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr><td>'+(r.can_open?'<button type="button" class="text-button" data-cash="order" data-id="'+r.order_id+'">'+esc(r.code)+'</button>':'<strong>'+esc(r.code)+'</strong>')+'</td><td>'+amountText(r.total)+'</td><td>'+amountText(r.driver_cash)+'</td><td>'+amountText(r.client_debt)+'</td></tr>').join('')+'</tbody></table></div>';
@@ -38,9 +38,9 @@ import {t,money,date,localizedName,intlLocale} from './i18n.js';
   const self=d.self,totals=admin()?d.totals:self;
   const root=$('#cash-results');if(!root)return;
   $('#cash-updated').textContent=t('updatedAt')+' '+date(d.generated_at);
-  root.innerHTML='<div class="cash-kpis">'+card('cashDeliveredCount',totals.deliveries_count)+card('cashDeliveryValue',amountText(totals.deliveries_total))+card(admin()?'cashToReceive':'cashToHandIn',amountText(totals.outstanding))+'</div>'+
-   (!admin()?'<div class="cash-driver-action"><p>'+esc(t('cashAlreadyAccepted'))+': <strong>'+amountText(self.accepted)+'</strong>'+
-    (self.pending>0?' · '+esc(t('cashWaiting'))+': <strong>'+amountText(self.pending)+'</strong>':'')+'</p>'+
+  root.innerHTML='<div class="cash-kpis cash-daily-kpis">'+card('cashDeliveredCount',totals.deliveries_count)+card('cashDeliveryValue',amountText(totals.deliveries_total))+card(admin()?'cashAcceptedDaily':'cashHandedDaily',amountText(totals.accepted))+card(admin()?'cashToReceive':'cashToHandIn',amountText(totals.outstanding))+'</div>'+
+   (!admin()?'<div class="cash-driver-action">'+
+    (self.pending>0?'<p>'+esc(t('cashWaiting'))+': <strong>'+amountText(self.pending)+'</strong></p>':'')+
     (self.to_hand>0?btn('cashHanded','hand-in','class="primary"'):'<p class="muted">'+esc(t(self.pending>0?'cashWaitForAdmin':'cashNothingToHand'))+'</p>')+'</div>':
     (Number(d.admin_cash)>0?'<p class="muted">'+esc(t('cashAdminClientReceipts'))+': <strong>'+amountText(d.admin_cash)+'</strong></p>':''))+
    (Number(totals.client_debt)>0?'<p class="notice">'+esc(t('cashUnpaidWarning'))+' <strong>'+amountText(totals.client_debt)+'</strong></p>':'')+
