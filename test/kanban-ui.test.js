@@ -7,7 +7,7 @@ import {IDBFactory} from 'fake-indexeddb';
 import {workflowServer} from './helpers/workflow-server.js';
 import {advance,call,ids} from './helpers/database.js';
 async function browser(f){
- const files=await Promise.all(['index.html','i18n.js','offline.js','workspaces.js','reports.js','operations.js','kanban.js','dashboard.js','app.js'].map(n=>readFile(new URL('../public/'+n,import.meta.url),'utf8')));
+ const files=await Promise.all(['index.html','i18n.js','offline.js','workspaces.js','reports.js','operations.js','cash.js','kanban.js','dashboard.js','app.js'].map(n=>readFile(new URL('../public/'+n,import.meta.url),'utf8')));
  const dom=new JSDOM(files[0],{url:f.url,runScripts:'outside-only'}),w=dom.window,d=w.document;Object.defineProperty(w,'indexedDB',{value:new IDBFactory()});w.crypto.randomUUID=randomUUID;w.fetch=(path,args)=>fetch(new URL(path,f.url),args);
  w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};w.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');this.dispatchEvent(new w.Event('close'));};
  w.eval(files.slice(1).map(s=>s.replace(/^import .*;\r?\n/gm,'').replace(/^export /gm,'')).join('\n'));
@@ -127,5 +127,22 @@ test('DOM: доставленный виден на главной, «В раб�
   for(const view of w.crmModules.views(w.crmUI.user()).filter(v=>v!=='kanban'))assert.equal(d.querySelectorAll('nav [data-view="'+view+'"]').length,1,view);
   d.querySelector('[data-view=adminDesk]').click();await wait(()=>d.querySelector('[data-module-help=adminDesk]'));assert.equal(d.querySelector('[data-nav-more]').open,true);assert.match(d.querySelector('[data-module-help]').textContent,/Сотрудники и роли/);
   await login('operator','home');assert.equal(d.querySelector('nav [data-view=stockroom]'),null);assert.equal(d.querySelector('nav [data-view=payrollDesk]'),null);
+ }finally{if(b)await b.close();await f.close();}
+});
+
+test('DOM касса: водитель видит доставки и передаёт одним кликом, администратор принимает без повторной оплаты',async()=>{
+ const f=await workflowServer();let b;try{
+  await advance(f.sql,f.orderId,'collected');
+  await f.db.rpc('crm_command',{p_command:'payment.record',p_data:{order_id:f.orderId,amount:50000,method:'cash'},p_user:ids.driver,p_ip:null,p_key:crypto.randomUUID()});
+  await f.db.rpc('crm_command',{p_command:'payment.record',p_data:{order_id:f.orderId,amount:112000,method:'cash'},p_user:ids.admin,p_ip:null,p_key:crypto.randomUUID()});
+  await advance(f.sql,f.orderId);await f.db.rpc('crm_ready',{});b=await browser(f);const {d,w,login,wait}=b;
+  await login('driver','home');await w.crmUI.navigate('cashbox');await wait(()=>d.querySelector('[data-cash=hand-in]')&&d.querySelector('.cash-orders'));
+  assert.equal(d.querySelectorAll('.cash-orders tbody tr').length,1);assert.match(d.querySelector('.cash-kpis').textContent,/50\s*000/);
+  d.querySelector('[data-cash=hand-in]').click();await wait(()=>d.querySelector('[data-handover]'));assert.equal(d.querySelector('[data-cash=hand-in]'),null);
+  await login('admin','home');await w.crmUI.navigate('cashbox');await wait(()=>d.querySelector('[data-cash=accept]'));d.querySelector('[data-cash=accept]').click();await wait(()=>!d.querySelector('[data-handover]'));
+  assert.equal((await f.sql.query('select paid_amount from orders where id=$1',[f.orderId])).rows[0].paid_amount,'162000');assert.equal((await f.sql.query('select count(*) from payments')).rows[0].count,2);
+  await login('driver','home');await w.crmUI.navigate('cashbox');await wait(()=>d.querySelector('.cash-orders'));assert.equal(d.querySelector('[data-cash=hand-in]'),null);assert.match(d.querySelector('.cash-driver-action').textContent,/50\s*000/);
+  const month=d.querySelector('.cash-month');month.open=true;month.dispatchEvent(new w.Event('toggle'));await wait(()=>d.querySelector('[data-cash-month-result] table'));
+  await login('operator','home');assert.equal(d.querySelector('nav [data-view=cashbox]'),null);
  }finally{if(b)await b.close();await f.close();}
 });
