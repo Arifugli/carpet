@@ -138,10 +138,13 @@ test('DOM касса: водитель видит доставки и перед
   await advance(f.sql,f.orderId);await f.db.rpc('crm_ready',{});b=await browser(f);const {d,w,login,wait}=b;
   await login('driver','home');await w.crmUI.navigate('cashbox');await wait(()=>d.querySelector('[data-cash=hand-in]')&&d.querySelector('.cash-orders'));
   assert.equal(d.querySelectorAll('.cash-orders tbody tr').length,1);assert.match(d.querySelector('.cash-kpis').textContent,/50\s*000/);
+  assert.equal(d.querySelectorAll('.cash-daily-kpis>[data-cash-metric]').length,4);assert.match(d.querySelector('[data-cash-metric=cashHandedDaily] strong').textContent,/^0\s/);
   d.querySelector('[data-cash=hand-in]').click();await wait(()=>d.querySelector('[data-handover]'));assert.equal(d.querySelector('[data-cash=hand-in]'),null);
-  await login('admin','home');await w.crmUI.navigate('cashbox');await wait(()=>d.querySelector('[data-cash=accept]'));d.querySelector('[data-cash=accept]').click();await wait(()=>!d.querySelector('[data-handover]'));
+  assert.match(d.querySelector('[data-cash-metric=cashHandedDaily] strong').textContent,/^0\s/);
+  await login('admin','home');await w.crmUI.navigate('cashbox');await wait(()=>d.querySelector('[data-cash=accept]'));assert.match(d.querySelector('[data-cash-metric=cashAcceptedDaily] strong').textContent,/^0\s/);d.querySelector('[data-cash=accept]').click();await wait(()=>!d.querySelector('[data-handover]'));
+  assert.match(d.querySelector('[data-cash-metric=cashAcceptedDaily] strong').textContent,/50\s*000/);
   assert.equal((await f.sql.query('select paid_amount from orders where id=$1',[f.orderId])).rows[0].paid_amount,'162000');assert.equal((await f.sql.query('select count(*) from payments')).rows[0].count,2);
-  await login('driver','home');await w.crmUI.navigate('cashbox');await wait(()=>d.querySelector('.cash-orders'));assert.equal(d.querySelector('[data-cash=hand-in]'),null);assert.match(d.querySelector('.cash-driver-action').textContent,/50\s*000/);
+  await login('driver','home');await w.crmUI.navigate('cashbox');await wait(()=>d.querySelector('.cash-orders'));assert.equal(d.querySelector('[data-cash=hand-in]'),null);assert.match(d.querySelector('[data-cash-metric=cashHandedDaily] strong').textContent,/50\s*000/);
   const month=d.querySelector('.cash-month');month.open=true;month.dispatchEvent(new w.Event('toggle'));await wait(()=>d.querySelector('[data-cash-month-result] table'));
   await login('operator','home');assert.equal(d.querySelector('nav [data-view=cashbox]'),null);
  }finally{if(b)await b.close();await f.close();}

@@ -123,3 +123,5 @@ body.detail-visible.crm-staff{padding-right:480px}
 @media(max-width:560px){.cash-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.cash-filters>button{grid-column:1/-1}.cash-kpis{gap:10px}.cash-kpis strong{font-size:18px}.cash-kpis span{font-size:12px}.cash-driver-action>button{width:100%;min-width:0}.cash-handover{padding:12px}.cash-handover .actions{grid-template-columns:repeat(2,minmax(0,1fr))}.cash-handover .actions>button:only-child{grid-column:1/-1}.cash-driver>summary{padding:12px}[data-cash-orders]{padding:0 10px 12px}.cash-driver-summary{padding:0 12px 12px;gap:8px}.cash-month form{grid-template-columns:minmax(0,1fr) auto}}
 
 .cash-chevron{display:inline-block;width:12px;transition:transform .12s}.cash-driver[open]>summary .cash-chevron{transform:rotate(90deg)}
+.cash-daily-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:760px){.cash-daily-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
