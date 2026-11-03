@@ -7,6 +7,22 @@ import {workflowServer} from './helpers/workflow-server.js';
 async function openAccount(page){const menu=page.locator('[data-account-settings]');await menu.waitFor();if(await menu.getAttribute('open')===null)await menu.locator('summary').click();}
 async function changeLanguage(page,value){await openAccount(page);await page.locator('[data-language]').selectOption(value);}
 async function accountLogout(page){await openAccount(page);await page.locator('[data-action=logout]').click();}
+test('Chromium приём: оператор принимает обращение и претензию на телефоне, администратор видит обе записи',async()=>{
+ const f=await workflowServer();let browser;try{
+  browser=await chromium.launch({headless:true,...(process.env.CRM_BROWSER_CHANNEL?{channel:process.env.CRM_BROWSER_CHANNEL}:{})});
+  const page=await browser.newPage({viewport:{width:390,height:844}}),dir=fileURLToPath(new URL('./test-artifacts/',import.meta.url));await mkdir(dir,{recursive:true});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const login=async role=>{await page.locator('[name=email]').fill(role+'@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-work-view=home]').waitFor();};
+  await page.goto(f.url);await login('operator');
+  await page.locator('#header nav>[data-view=leads]').click();await page.locator('[data-form-name="lead.save"]').click();
+  await page.locator('[data-desk-form] [name=phone]').fill('901234567');await page.locator('[data-desk-form] [name=name]').fill('Дилноза');await page.locator('[name=comment]').fill('Уточнить время забора');await page.locator('[data-desk-form] button.primary').click();await page.locator('#action').waitFor({state:'hidden'});await page.getByText('Уточнить время забора',{exact:true}).waitFor();
+  await page.locator('#header nav>[data-view=qualityDesk]').click();await page.locator('[data-form="complaint.intake"]').click();await page.locator('[data-order-search]').fill('901234567');await page.locator('select[name=order_id] option[value="'+f.orderId+'"]').waitFor({state:'attached'});await page.locator('select[name=order_id]').selectOption(f.orderId);
+  await page.locator('[name=reason]').fill('Пятна на ковре');await page.locator('[name=note]').fill('Клиент просит проверить качество стирки');await page.locator('[data-desk-form] button.primary').click();await page.locator('#action').waitFor({state:'hidden'});await page.locator('[data-ops=complaint-detail]').click();await page.locator('.intake-details').waitFor();assert.match(await page.locator('.intake-details').textContent(),/проверить качество/);assert.equal(await page.locator('[data-ops=resolve]').count(),0);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await page.screenshot({path:dir+'/operator-complaint-mobile.png',fullPage:true});await page.locator('#action [data-ops=close]').click();await accountLogout(page);await page.setViewportSize({width:1440,height:1000});await login('admin');
+  await page.locator('#header nav>[data-view=qualityDesk]').click();await page.locator('[data-ops=complaint-detail]').waitFor();assert.equal(await page.locator('[data-ops=resolve]').count(),1);await page.locator('[data-ops=complaint-detail]').click();await page.locator('.intake-details').waitFor();assert.match(await page.locator('.intake-details').textContent(),/проверить качество/);await page.screenshot({path:dir+'/admin-complaint-desktop.png',fullPage:true});await page.locator('#action [data-ops=close]').click();
+  await page.locator('#header nav>[data-view=leads]').click();await page.getByText('Уточнить время забора',{exact:true}).waitFor();await changeLanguage(page,'uz');await page.locator('#header nav>[data-view=qualityDesk]').click();await page.locator('[data-form="complaint.intake"]').click();assert.equal(await page.locator('label[for=intake-order-search]').textContent(),'Buyurtmani topish');assert.deepEqual(errors,[]);
+ }finally{if(browser)await browser.close();await f.close();}
+});
+
 test('Chromium mobile: шесть колонок driver, десять operator, обязательный район и отсутствие размеров',async()=>{
  const f=await workflowServer();let browser;try{
   const far=await create(f.sql,{items:[{tariff:'blanket',quantity:1}]});await advance(f.sql,far,'ready_for_delivery');

@@ -17,3 +17,4 @@ import './intake-items.test.js';
 import './dashboard.test.js';
 import './daily-cash.test.js';
 import './branding.test.js';
+import './customer-intake.test.js';

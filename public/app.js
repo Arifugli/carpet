@@ -47,7 +47,7 @@ function shell() {
  const identity=window.CRMBranding?.identity()||{name:t('title'),subtitle:t('subtitle')};
  document.title=identity.name;document.documentElement.lang=locale;document.body.classList.toggle('crm-staff',!!state.user);
  const views=state.user?[...(window.crmModules?.views(state.user)||[]),...(has('trash')?['requests','trash']:[]),...(has('audit')?['audit']:[])]:[];
- const primary=[['home','home'],['tasks','tasks'],['clients','clients'],['orderList','orders'],['reports','analyticsNav']].filter(([key])=>views.includes(key));
+ const primary=[['home','home'],['tasks','tasks'],['clients','clients'],['leads','leads'],['qualityDesk','qualityDesk'],['orderList','orders'],['reports','analyticsNav']].filter(([key])=>views.includes(key));
  const omitted=new Set([...primary.map(([key])=>key),'kanban','appearance']);const more=views.filter(v=>!omitted.has(v));
  const navButton=(view,label)=>'<button type="button" data-view="'+view+'" aria-current="'+(state.view===view||(view==='orderList'&&state.view==='kanban')?'page':'false')+'">'+esc(t(label||view))+'</button>';
  $('#header').innerHTML='<div class="bar"><div class="brand"><img data-brand-logo alt="" '+(identity.logo?'src="'+esc(identity.logo)+'"':'hidden')+'><div class="brand-text"><span data-brand-name>'+esc(identity.name)+'</span><small data-brand-subtitle '+(!identity.subtitle?'hidden':'')+'>'+esc(identity.subtitle)+'</small></div></div><div class="header-controls"><div class="account-row">'+(state.user?'<div class="user">'+esc(state.user.full_name)+'<small>'+esc(t(state.user.role))+'</small></div>':'')+

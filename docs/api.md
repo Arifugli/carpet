@@ -82,3 +82,7 @@ GET `/api/home` и `/api/order-table`: прежние boardFilter + status, clie
 GET `/api/client-list`: право clients, q/branch_id/limit/offset. RPC crm_clients возвращает контакты, число доступных заказов и постраничный список. GET `/api/client-card/:id?branch_id=UUID`: crm_client_card возвращает данные клиента, до 10 адресов (актуальный первым), до 10 последних видимых заказов и orders_count. Производственные роли/водитель доступа к этим endpoints не получают.
 
 GET `/api/board`: по умолчанию 15 карточек этапа; прежние фильтры и счётчики сохранены. Карточки очереди/канбана содержат только необходимые поля, без track_token, delete_snapshot или pricing_snapshot; телефон производственных ролей маскируется. Новые RPC закрыты anon/authenticated, EXECUTE явно выдан service_role. /ready требует схему 19. Никакая миграция не выполняется при старте.
+
+## Приём обращений и претензий (1.2.4)
+
+Используются прежние POST /api/actions/lead.save и complaint.create с Idempotency-Key, GET /api/workspaces/leads и GET /api/ops/quality. Создатель записывается из активного profiles; филиал и права проверяет PostgreSQL. Поиск заказа для претензии использует GET /api/order-table?q=...&branch_id=...&limit=20&offset=0, включая доставленные заказы. Оператору запрещены чужой филиал и complaint.resolve; решение остаётся у admin. Новых таблиц, RPC и миграций нет.
