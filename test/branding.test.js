@@ -24,6 +24,14 @@ test('оформление SQL: только активный admin, RLS/GRANT, 
   const id=crypto.randomUUID();await call(db,'crm_branding_asset_register',[id,'background','background/'+id+'.png','image/png',png.length,ids.admin,null]);
   await assert.rejects(call(db,'crm_branding_save',[JSON.stringify({...payload,expected_revision:1,logo_id:id}),ids.admin,null]),e=>e.code==='23514');
   assert.equal((await call(db,'crm_branding_public',[])).logo_id,null);
+  const logo=crypto.randomUUID();await call(db,'crm_branding_asset_register',[logo,'logo','logo/'+logo+'.png','image/png',png.length,ids.admin,null]);
+  const branded={...payload,...BRAND_PRESETS.warm,subtitle:'Gilam yuvish',logo_id:logo,background_id:id,background_opacity:0.12,expected_revision:1};
+  const saved=await call(db,'crm_branding_save',[JSON.stringify(branded),ids.admin,null]);
+  assert.equal(saved.revision,2);assert.equal(saved.organization_name,'Gilamjon');assert.equal(saved.subtitle,'Gilam yuvish');assert.equal(saved.logo_id,logo);assert.equal(saved.background_id,id);
+  assert.equal((await call(db,'crm_branding_save',[JSON.stringify(branded),ids.admin,null])).revision,2);
+  await assert.rejects(call(db,'crm_branding_save',[JSON.stringify({...branded,expected_revision:2,logo_id:id,organization_name:'Rejected'}),ids.admin,null]),e=>e.code==='23514');
+  assert.deepEqual(await call(db,'crm_branding_public',[]),saved);
+  assert.equal((await db.query("select count(*) n from audit_log where entity='organization_branding'")).rows[0].n,2);
  }finally{await db.close();}
 });
 test('оформление HTTP: общая публичная тема, защищённая запись/загрузка, приватные файлы через ограниченный маршрут',async()=>{
@@ -37,8 +45,9 @@ test('оформление HTTP: общая публичная тема, защ�
   assert.equal((await req('/branding/assets?kind=logo','admin',Buffer.from('<svg onload="alert(1)"></svg>'),'image/png')).status,400);
   assert.equal(f.db.storageObjects.size,0);
   const uploaded=await req('/branding/assets?kind=logo','admin',png,'image/png');assert.equal(uploaded.status,201);const image=await uploaded.json();
-  assert.equal((await req('/branding','admin',{...payload,logo_id:image.id})).status,200);
-  const publicData=await (await req('/branding')).json();assert.equal(publicData.logo_id,image.id);assert.equal(publicData.organization_name,'Gilamjon');assert.equal(publicData.updated_by,undefined);
+  const backgroundUpload=await req('/branding/assets?kind=background','admin',png,'image/png');assert.equal(backgroundUpload.status,201);const background=await backgroundUpload.json();
+  assert.equal((await req('/branding','admin',{...payload,...BRAND_PRESETS.warm,subtitle:'Gilam yuvish',logo_id:image.id,background_id:background.id})).status,200);
+  const publicData=await (await req('/branding')).json();assert.equal(publicData.logo_id,image.id);assert.equal(publicData.background_id,background.id);assert.equal(publicData.organization_name,'Gilamjon');assert.equal(publicData.subtitle,'Gilam yuvish');assert.equal(publicData.updated_by,undefined);
   const actual=await req('/branding/assets/'+image.id);assert.equal(actual.status,200);assert.match(actual.headers.get('Content-Type'),/image\/png/);assert.match(actual.headers.get('Cache-Control'),/immutable/);assert.deepEqual(Buffer.from(await actual.arrayBuffer()),png);
   assert.equal((await req('/branding/assets/'+crypto.randomUUID())).status,404);assert.equal((await req('/orders')).status,401);assert.equal((await req('/orders/'+f.orderId+'/photos')).status,401);
   await f.sql.exec('reset role');assert.equal((await f.sql.query("select public from storage.buckets where id='carpet-photos'")).rows[0].public,false);
