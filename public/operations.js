@@ -13,7 +13,6 @@ import {t,money,date,localizedName} from './i18n.js';
   'discount.apply':form('applyDiscount',[fields.order,['code','promoOrLoyalty']]),
   'payment.refund':form('refundPayment',[fields.order,['amount','amount','number',true],['method','method','method',true],fields.note]),
   'payment.intent':form('onlinePayment',[fields.order,['provider','provider','provider',true],['amount','amount','number',true]]),
-  'cash.close':form('closeCash',[fields.branch,['driver_id','driver','drivers',true],['day','date','date',true],['counted','countedCash','number',true],fields.note]),
   'client.preferences':form('clientPreferences',[fields.branch,['client_id','client','hidden'],['tags','clientTags'],['sms_consent','smsConsent','checkbox'],['telegram_consent','telegramConsent','checkbox'],['telegram_chat_id','telegramChat']],{transform:d=>({...d,tags:(d.tags||'').split(',').map(s=>s.trim()).filter(Boolean)})}),
   'intake.create':form('newIntake',[fields.order,fields.note]),
   'complaint.create':form('newComplaint',[fields.order,['reason','complaintReason','text',true],fields.note,['photo_id','photo','photoRef'],['responsible_id','assigned_to','staff'],['due_at','due_at','datetime-local',true]],{transform:d=>{if(d.photo_id)d.photo_ids=[d.photo_id];delete d.photo_id;return d;}}),
@@ -26,7 +25,6 @@ import {t,money,date,localizedName} from './i18n.js';
  });
  modules.forms['client.policy']={...modules.forms['client.preferences'],command:'client.preferences',fields:[...modules.forms['client.preferences'].fields,['blacklisted','blacklisted','checkbox'],['blacklist_reason','blacklistReason','textarea']]};
  const definitions={
-  cashbox:{view:'cash',permission:'payments',roles:['admin','driver'],actions:[['closeCash','cash.close','staff']]},
   stockroom:{view:'stock',permission:'inventory',actions:[['newMaterial','material.save','staff']]},
   qualityDesk:{view:'quality',permission:'complaints'},rewashDesk:{view:'rewash',permission:'admin'},
   loyaltyDesk:{view:'loyalty',permission:'discounts',actions:[['newDiscount','discount.rule','discounts']]},
@@ -40,7 +38,6 @@ import {t,money,date,localizedName} from './i18n.js';
  const section=(title,html)=>`<section class="box"><h2>${esc(t(title))}</h2>${html}</section>`;
  function draw(){
   const d=state.data,v=state.view;let html='';
-  if(v==='cashbox')html=section('cashbox',table(d.cash,[['received_by','driver'],['expected','expectedCash'],['operations','operations']]))+section('cashClosings',table(d.closings,[['driver_id','driver'],['day','date'],['expected','expectedCash'],['counted','countedCash'],['difference','difference'],['note','note']]));
   if(v==='stockroom')html=section('materials',table(d.materials,[['name','name'],['unit','unit'],['stock','stock'],['norm_per_m2','normPerM2']],ui().has('staff')?r=>btn('adjustStock','adjust',`data-id="${r.id}"`):null))+section('stockMovements',table(d.movements,[['created_at','date'],['quantity','quantity'],['source','source'],['note','note']]));
   if(v==='qualityDesk')html=section('complaints',table(d.complaints,[['code','code'],['reason','complaintReason'],['state','status'],['responsible_id','assigned_to'],['due_at','due_at'],['resolution','resolution'],['resolution_note','note']],r=>`${btn('details','order',`data-id="${r.order_id}"`)}${ui().has('discounts')&&!r.resolution?btn('resolveComplaint','resolve',`data-id="${r.id}"`):''}`))+section('compensations',table(d.compensations,[['amount','amount'],['note','note']],ui().has('discounts')?r=>btn('markPaid','compensate',`data-id="${r.id}"`):null));
   if(v==='rewashDesk')html=table(d.jobs,[['code','code'],['reason','complaintReason'],['stage','stage']],r=>btn('nextStage','rewash',`data-id="${r.id}" data-stage="${r.stage}"`));

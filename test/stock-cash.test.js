@@ -12,7 +12,7 @@ test('мойка: нехватка материалов откатывает ф�
  }finally{await db.close();}
 });
 test('касса: прежняя оплата driver сохраняется, подтверждение/сверка доступны только admin',async()=>{
- const db=await database();try{
+ const db=await database({cashbook:false});try{
   const id=await createPriced(db);await command(db,'payment.record',{order_id:id,amount:30000,method:'cash'},'driver');
   const day=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Tashkent'}).format(new Date()),view=await call(db,'crm_operations',['cash',JSON.stringify({date:day}),ids.driver]);assert.equal(view.cash[0].expected,30000);
   await assert.rejects(command(db,'cash.close',{branch_id:bid,driver_id:ids.driver,day,counted:29000,note:'Расхождение'},'driver'),e=>e.code==='42501');

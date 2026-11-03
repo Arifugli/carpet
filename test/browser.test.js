@@ -122,3 +122,20 @@ test('Chromium: доставленный заказ на главной и ро�
   assert.deepEqual(errors,[]);await context.close();
  }finally{await browser?.close();await f.close();}
 });
+
+test('Chromium касса: ежедневные доставки, передача водителем и приём администратором в один клик',async()=>{
+ const f=await workflowServer();let browser;try{
+  await advance(f.sql,f.orderId,'collected');await command(f.sql,'payment.record',{order_id:f.orderId,amount:50000,method:'cash'},'driver');await command(f.sql,'payment.record',{order_id:f.orderId,amount:112000,method:'cash'},'admin');await advance(f.sql,f.orderId);await f.db.rpc('crm_ready',{});
+  browser=await chromium.launch({headless:true,...(process.env.CRM_BROWSER_CHANNEL?{channel:process.env.CRM_BROWSER_CHANNEL}:{})});
+  const dc=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true}),ac=await browser.newContext({viewport:{width:1440,height:950}}),driver=await dc.newPage(),administrator=await ac.newPage(),errors=[];
+  for(const page of [driver,administrator])page.on('pageerror',e=>errors.push(e.message));
+  const login=async(page,role)=>{await page.goto(f.url);await page.locator('[name=email]').fill(role+'@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table]').waitFor();await page.locator('[data-nav-more] summary').click();await page.locator('[data-view=cashbox]').click();await page.locator('.cash-kpis').waitFor();};
+  await login(driver,'driver');await driver.locator('.cash-orders').waitFor();assert.equal(await driver.locator('.cash-orders tbody tr').count(),1);assert.match(await driver.locator('.cash-kpis').textContent(),/50\s*000/);assert.equal(await driver.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  const dir=fileURLToPath(new URL('../test-artifacts/',import.meta.url));await mkdir(dir,{recursive:true});await driver.screenshot({path:dir+'/cash-driver-daily.png',fullPage:true});
+  await driver.locator('[data-cash=hand-in]').click();await driver.locator('[data-handover]').waitFor();assert.equal(await driver.locator('[data-cash=hand-in]').count(),0);
+  await login(administrator,'admin');await administrator.locator('[data-cash=accept]').waitFor();assert.match(await administrator.locator('.cash-handover').textContent(),/50\s*000/);await administrator.screenshot({path:dir+'/cash-admin-pending.png',fullPage:true});
+  await administrator.locator('[data-cash=accept]').click();await administrator.waitForFunction(()=>!document.querySelector('[data-handover]'));await driver.locator('[data-cash=refresh]').click();await driver.waitForFunction(()=>!document.querySelector('[data-handover]'));assert.match(await driver.locator('.cash-driver-action').textContent(),/50\s*000/);
+  await driver.locator('.cash-month summary').first().click();await driver.locator('[data-cash-month-result] table').waitFor();await driver.screenshot({path:dir+'/cash-driver-month.png',fullPage:true});assert.equal(await driver.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  assert.equal((await f.sql.query('select paid_amount from orders where id=$1',[f.orderId])).rows[0].paid_amount,'162000');assert.equal((await f.sql.query('select count(*) from payments')).rows[0].count,2);assert.deepEqual(errors,[]);await dc.close();await ac.close();
+ }finally{await browser?.close();await f.close();}
+});

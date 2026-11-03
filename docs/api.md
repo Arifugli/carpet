@@ -39,7 +39,25 @@
 
 POST `/staff/create`: email/password/full_name/role/active/branch_id; driver требует district_codes[] и допускает driver_color=#RRGGBB. Создание admin разрешено. action staff.update имеет те же поля профиля; последний активный admin защищён в БД. GET `/workspaces/bootstrap` и `/workspaces/admin` включают районы/цвет.
 
-Прежние команды branch.save, tariff.schedule, setting.schedule, catalog.save, template.save и admin.update/archive/restore сохранены. Финансы payment.record/confirm/intent/refund, cash.close, discount.*, клиентские предпочтения/теги/согласия, акты/претензии, склад и начисления, телефония/webhook/outbox и импорт/экспорт сохраняют API, с правами из permissions.md. Планирование и ставки доступны admin.
+Прежние команды branch.save, tariff.schedule, setting.schedule, catalog.save, template.save и admin.update/archive/restore сохранены. Финансы payment.record/confirm/intent/refund, discount.*, клиентские предпочтения/теги/согласия, акты/претензии, склад и начисления, телефония/webhook/outbox и импорт/экспорт сохраняют API, с правами из permissions.md. С 0020 старая cash.close блокируется триггером: используйте новые действия кассы ниже. Планирование и ставки доступны admin.
+
+## Ежедневная касса (0020)
+
+Доступ по прежнему payments: только активные admin/driver; филиал и собственная касса проверяются повторно в RPC. Сотрудники производства/operator доступа не получают.
+
+| Endpoint | Данные / результат |
+|---|---|
+| GET /api/cash | branch_id, day=YYYY-MM-DD (по умолчанию сегодня Asia/Tashkent). rows/self/totals: deliveries_count, deliveries_total, collected, accepted, pending, to_hand, outstanding, client_debt. pending включает неподтверждённые передачи других дней. admin_cash — прямые наличные клиента этому администратору. |
+| GET /api/cash/details | branch_id, day, driver_id, offset (страницы по 50). deliveries: стоимость/остаток клиента/наличные выбранного дня; other_cash: авансы и другие поступления. driver запрашивает только себя. |
+| GET /api/cash/month | branch_id, month=YYYY-MM. Закрытый снимок доставок/полученных наличных либо предварительный текущий месяц; accepted/outstanding учитывают поздние подтверждения. |
+| POST /api/cash/hand-in | {branch_id,day,expected_amount}. Только driver, сумма вычисляется БД; несовпадение со свежим остатком — 409. |
+| POST /api/cash/:id/accept | Только admin своего филиала; принимает передачу. |
+| POST /api/cash/:id/reject | Только admin; {reason?}, сумма снова доступна к передаче. |
+| POST /api/cash/:id/cancel | Только создавший driver; отмена ожидающей передачи. |
+
+POST требует Idempotency-Key: UUID. БД блокирует месяц/день и строку передачи, повтор не дублирует движение; принятый перевод нельзя переписать. Суммы — целые сум. collected — подтверждённые наличные, полученные водителем в выбранный день, включая аванс; предоплаты admin и безнал исключены. to_hand=max(collected−accepted−pending,0); outstanding=max(collected−accepted,0). Сохранённые старые cash_closings учитываются как уже сданные. Клиентские payments/paid_amount при сдаче и приёме не меняются.
+
+crm_cash_close_due_months() доступна только серверу/cron, HTTP endpoint отсутствует. 0021 регистрирует вызов в 19:00 UTC ежедневно (00:00 Asia/Tashkent); он создаёт только отсутствующие отчёты завершённых месяцев. Никакого автоматического подтверждения наличных.
 
 GET `/health` — процесс; GET `/ready` — применённая схема и завершённая очистка, без автоматического DDL. Клиентский трекинг не раскрывает адрес, телефон или размеры.
 

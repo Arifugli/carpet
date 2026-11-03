@@ -13,6 +13,29 @@ const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 const uuid=z.string().uuid(),key=req=>uuid.parse(req.get('Idempotency-Key'));
 export function createOperations(db,config={}){
  const r=Router();
+ const cashAccess=allow('payments');
+ const cashQuery=z.object({branch_id:uuid,day:z.string().date().optional(),driver_id:uuid.optional(),offset:z.coerce.number().int().min(0).max(10000000).optional()}).strict();
+ r.get('/cash',cashAccess,async(req,res)=>{
+  const f=cashQuery.omit({driver_id:true,offset:true}).parse(req.query);
+  res.json(checked(await db.rpc('crm_cash_day',{p_filters:f,p_user:req.user.id})));
+ });
+ r.get('/cash/details',cashAccess,async(req,res)=>{
+  const f=cashQuery.required({day:true,driver_id:true}).parse(req.query);
+  res.json(checked(await db.rpc('crm_cash_details',{p_filters:f,p_user:req.user.id})));
+ });
+ r.get('/cash/month',cashAccess,async(req,res)=>{
+  const f=z.object({branch_id:uuid,month:z.string().regex(/^\d{4}-\d{2}$/)}).strict().parse(req.query);
+  res.json(checked(await db.rpc('crm_cash_month',{p_filters:f,p_user:req.user.id})));
+ });
+ r.post('/cash/hand-in',cashAccess,async(req,res)=>{
+  const data=z.object({branch_id:uuid,day:z.string().date(),expected_amount:z.number().int().min(0).max(999999999999)}).strict().parse(req.body);
+  res.json(checked(await db.rpc('crm_cash_command',{p_action:'hand_in',p_data:data,p_user:req.user.id,p_ip:req.ip,p_key:key(req)})));
+ });
+ r.post('/cash/:id/:action',cashAccess,async(req,res)=>{
+  const handover_id=uuid.parse(req.params.id),action=z.enum(['accept','reject','cancel']).parse(req.params.action);
+  const data=z.object({reason:z.string().trim().max(1000).optional()}).strict().parse(req.body??{});
+  res.json(checked(await db.rpc('crm_cash_command',{p_action:action,p_data:{handover_id,...data},p_user:req.user.id,p_ip:req.ip,p_key:key(req)})));
+ });
  r.get('/payment-intents/:id/link',allow('read'),async(req,res)=>{
   if(['warehouse','washer','packer'].includes(req.user.role))throw new HttpError(403,'Нет доступа к оплате','FORBIDDEN');
   const id=uuid.parse(req.params.id);z.object({}).strict().parse(req.query);const intent=checked(await db.from('payment_intents').select('id,order_id,provider,amount,state,expires_at').eq('id',id).maybeSingle());if(!intent)throw new HttpError(404,'Счёт не найден');
