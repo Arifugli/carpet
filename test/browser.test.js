@@ -157,7 +157,7 @@ test('Chromium оформление: логотип и фон, сохранен�
   const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(f.url);assert.equal(await page.locator('[data-language]').isVisible(),false);await openAccount(page);assert.ok(await page.locator('[data-language]').isVisible());assert.equal(await page.locator('[data-view=appearance]').count(),0);
   await page.locator('[name=email]').fill('admin@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table]').waitFor();
-  await openAccount(page);await page.locator('[data-view=appearance]').click();await page.locator('[data-brand-form]').waitFor();
+  await openAccount(page);const menuBounds=await page.locator('.account-menu').boundingBox();assert.ok(menuBounds.x>=0);assert.ok(menuBounds.x+menuBounds.width<=1440);await page.locator('[data-view=appearance]').click();await page.locator('[data-brand-form]').waitFor();
   await page.locator('[name=organization_name]').fill('Gilamjon');await page.locator('[name=subtitle]').fill('');await page.locator('[data-brand=preset][data-preset=warm]').click();
   const image=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');x.fillStyle='#934223';x.fillRect(0,0,128,128);x.fillStyle='white';x.font='bold 88px sans-serif';x.fillText('G',28,95);return c.toDataURL('image/png').split(',')[1];}),'base64');
   for(const kind of ['logo','background'])await page.locator('[data-brand-file='+kind+']').setInputFiles({name:kind+'.png',mimeType:'image/png',buffer:image});
