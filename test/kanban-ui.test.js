@@ -159,6 +159,7 @@ test('DOM оформление: общий бренд, предпросмотр/
   assert.equal(d.querySelector('[data-brand-name]').textContent,'Gilamjon');assert.equal((await f.sql.query('select organization_name from organization_branding')).rows[0].organization_name,null);
   form.elements.organization_name.value='<img src=x onerror=alert(1)>';form.elements.organization_name.dispatchEvent(new w.Event('input',{bubbles:true}));assert.equal(d.querySelector('[data-brand-name] img'),null);assert.equal(d.querySelector('[data-brand-name]').textContent,'<img src=x onerror=alert(1)>');
   d.querySelector('[data-brand=cancel]').click();await wait(()=>d.querySelector('[data-brand-name]').textContent==='Ковёр CRM');
+  form=d.querySelector('[data-brand-form]');form.elements.organization_name.value='Несохранённое название';form.elements.organization_name.dispatchEvent(new w.Event('input',{bubbles:true}));await w.crmUI.navigate('audit');assert.equal(d.querySelector('[data-brand-name]').textContent,'Ковёр CRM');await w.crmUI.navigate('appearance');await wait(()=>d.querySelector('[data-brand-form]'));
   d.querySelector('[data-brand=preset][data-preset=dark]').click();await wait(()=>d.documentElement.dataset.theme==='dark');
   form=d.querySelector('[data-brand-form]');form.elements.organization_name.value='Gilamjon';form.elements.subtitle.value='';submit(form);
   await wait(()=>d.querySelector('[data-brand-form]')!==form);assert.equal((await f.sql.query('select organization_name from organization_branding')).rows[0].organization_name,'Gilamjon');assert.equal(d.title,'Gilamjon');

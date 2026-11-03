@@ -89,6 +89,7 @@ function filterForm() {
  return `<form class="filters" data-form="filters"><div class="field search"><label for="q">${esc(t('search'))}</label><input id="q" name="q" maxlength="120" value="${esc(f.q||'')}"></div><div class="field"><label for="status-filter">${esc(t('status'))}</label><select id="status-filter" name="status"><option value="">${esc(t('allStatuses'))}</option>${['new','pickup_planned','warehouse','washing','packing','ready_for_delivery','in_transit','delivered','postponed','cancelled'].map(v=>`<option value="${v}" ${f.status===v?'selected':''}>${esc(t(v))}</option>`).join('')}</select></div><button>${esc(t('filter'))}</button></form>`;
 }
 async function listScreen() {
+ if(state.view!=='appearance')window.CRMBranding?.leave?.();
  shell();
  if(window.crmModules?.views(state.user).includes(state.view)){await window.crmModules.render(state.view);explainModule(state.view);return;}
  $('#main').innerHTML=`<div class="heading"><h1>${esc(t(state.view))}</h1><div class="actions">${has('create')&&state.view==='orders'?button('newOrder','new-order','class="primary"'):''}${button('refresh','refresh')}</div></div>${filterForm()}<div id="list" aria-live="polite"></div><div id="pagination"></div>`;

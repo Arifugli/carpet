@@ -48,7 +48,8 @@ import {BRAND_DEFAULTS,BRAND_PRESETS,brandHex,brandPalette,brandColorErrors} fro
   main.innerHTML='<div class="heading"><div><h1>'+esc(t('themeSettings'))+'</h1><p class="module-help">'+esc(t('themeSharedHint'))+'</p></div></div><div class="theme-editor"><form data-brand-form><div class="theme-presets" role="group" aria-label="'+esc(t('themePreset'))+'">'+Object.keys(BRAND_PRESETS).map(key=>'<button type="button" data-brand="preset" data-preset="'+key+'">'+esc(t('themePreset_'+key))+'</button>').join('')+'</div><section class="box theme-section"><h2>'+esc(t('themeIdentity'))+'</h2><label>'+esc(t('themeOrganization'))+'<input name="organization_name" value="'+esc(info.name)+'" required maxlength="80"></label><label>'+esc(t('themeSubtitle'))+'<input name="subtitle" value="'+esc(info.subtitle||'')+'" maxlength="120"></label>'+imageField('logo','themeLogo')+'<p class="muted">'+esc(t('themePublicImageHint'))+'</p></section><section class="box theme-section"><h2>'+esc(t('themeColors'))+'</h2><label>'+esc(t('themeMode'))+'<select name="mode"><option value="light" '+(draft.mode==='light'?'selected':'')+'>'+esc(t('themePreset_light'))+'</option><option value="dark" '+(draft.mode==='dark'?'selected':'')+'>'+esc(t('themePreset_dark'))+'</option></select></label><div class="theme-color-grid">'+['accent_color','background_color','sidebar_color'].map(key=>'<label>'+esc(t('theme_'+key))+'<input type="color" name="'+key+'" value="'+draft[key]+'"></label>').join('')+'</div>'+imageField('background','themeBackgroundImage')+'<label>'+esc(t('themeBackgroundStrength'))+'<input type="range" name="background_opacity" min="0" max="20" step="1" value="'+Math.round(draft.background_opacity*100)+'"></label><button type="button" class="text-button" data-brand="defaults">'+esc(t('themeReset'))+'</button></section><p class="error" role="alert" data-brand-error></p><div class="actions theme-save-actions"><button class="primary" type="submit">'+esc(t('save'))+'</button><button type="button" data-brand="cancel">'+esc(t('themeDiscard'))+'</button></div></form><aside class="theme-preview"><h2>'+esc(t('themePreview'))+'</h2><div data-brand-preview></div></aside></div>';
   paint(draft);
  }
- window.CRMBranding={load,identity,apply};
+ function leave(){if(editing){clearFiles();editing=false;draft=null;paint(saved);}}
+ window.CRMBranding={load,identity,apply,leave};
  modules.addFeature({key:'appearance',permission:'staff',roles:['admin'],render});
  document.addEventListener('input',e=>{const form=e.target.closest('[data-brand-form]');if(form&&e.target.type!=='file'&&e.target.name!=='mode')preview(form);});
  document.addEventListener('change',async e=>{
@@ -75,6 +76,6 @@ import {BRAND_DEFAULTS,BRAND_PRESETS,brandHex,brandPalette,brandColorErrors} fro
   }catch(err){if(error.isConnected)error.textContent=err.message;}
   finally{saving=false;header.inert=previousInert;if(form.isConnected){form.removeAttribute('aria-busy');form.querySelectorAll('button,input,select').forEach(el=>el.disabled=false);}}
  });
- const originalRender=modules.render;modules.render=async view=>{if(view!=='appearance'&&editing){clearFiles();editing=false;draft=null;paint(saved);}return originalRender(view);};
+ const originalRender=modules.render;modules.render=async view=>{if(view!=='appearance')leave();return originalRender(view);};
  const originalLogout=modules.logout;modules.logout=()=>{clearFiles();editing=false;draft=null;paint(saved);originalLogout();};
 })();
