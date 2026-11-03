@@ -15,11 +15,12 @@ import {createProviders} from './routes/providers.js';
 import {createInbound,createClientPortal} from './routes/integrations.js';
 import {randomUUID} from 'node:crypto';
 import {validationResponse} from './validation.js';
+import {createBrandingPublic,createBrandingAdmin} from './routes/branding.js';
 
 export function createApp({db,authClient,config={},authenticate}={}) {
  const app=express();
  app.set('trust proxy',config.trustProxy??1);
- app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'"],imgSrc:["'self'",'data:','https:'],frameSrc:["'self'",'https://yandex.ru'],connectSrc:["'self'",...(config.supabaseUrl?[new URL(config.supabaseUrl).origin]:[])],upgradeInsecureRequests:null}}}));
+ app.use(helmet({contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'"],imgSrc:["'self'",'data:','blob:','https:'],frameSrc:["'self'",'https://yandex.ru'],connectSrc:["'self'",...(config.supabaseUrl?[new URL(config.supabaseUrl).origin]:[])],upgradeInsecureRequests:null}}}));
  app.use(cors({origin:config.corsOrigins?.length?config.corsOrigins:false}));
  app.use((req,res,next)=>{const started=performance.now(),id=randomUUID();res.set('X-Request-Id',id);res.on('finish',()=>{if(config.requestLogging)console.log(JSON.stringify({event:'http',request_id:id,method:req.method,route:req.route?.path||'static',status:res.statusCode,duration_ms:Math.round(performance.now()-started)}));});next();});
  app.use(express.json({limit:'3mb',verify:(req,_res,buffer)=>{req.rawBody=buffer;}}));
@@ -30,7 +31,8 @@ export function createApp({db,authClient,config={},authenticate}={}) {
  app.use('/api/public',createClientPortal(db,config));
  app.use('/api/providers',createProviders(db,config));
  app.use('/api/integrations',createInbound(db,config));
- app.use('/api',rateLimit({windowMs:60000,limit:240,message:{error:'Слишком много запросов. Повторите позже.',code:'RATE_LIMIT'}}),authenticate||createAuth(db),createOperations(db,config),createReports(db),createWorkspaces(db,config),createStaffApi(db,config),createOrders(db,config));
+ app.use('/api/branding',rateLimit({windowMs:60000,limit:180,message:{error:'Слишком много запросов. Повторите позже.',code:'RATE_LIMIT'}}),createBrandingPublic(db));
+ app.use('/api',rateLimit({windowMs:60000,limit:240,message:{error:'Слишком много запросов. Повторите позже.',code:'RATE_LIMIT'}}),authenticate||createAuth(db),createBrandingAdmin(db),createOperations(db,config),createReports(db),createWorkspaces(db,config),createStaffApi(db,config),createOrders(db,config));
  app.use(express.static(fileURLToPath(new URL('../public',import.meta.url))));
  app.get('/track/:token',(_req,res)=>res.sendFile(fileURLToPath(new URL('../public/index.html',import.meta.url))));
  app.get(['/intake/:token','/feedback/:token'],(_req,res)=>{res.set('Cache-Control','no-store');res.sendFile(fileURLToPath(new URL('../public/confirm.html',import.meta.url)));});

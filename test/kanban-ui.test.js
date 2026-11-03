@@ -7,7 +7,7 @@ import {IDBFactory} from 'fake-indexeddb';
 import {workflowServer} from './helpers/workflow-server.js';
 import {advance,call,ids} from './helpers/database.js';
 async function browser(f){
- const files=await Promise.all(['index.html','i18n.js','offline.js','workspaces.js','reports.js','operations.js','cash.js','kanban.js','dashboard.js','app.js'].map(n=>readFile(new URL('../public/'+n,import.meta.url),'utf8')));
+ const files=await Promise.all(['index.html','i18n.js','offline.js','workspaces.js','reports.js','operations.js','theme.js','branding.js','cash.js','kanban.js','dashboard.js','app.js'].map(n=>readFile(new URL('../public/'+n,import.meta.url),'utf8')));
  const dom=new JSDOM(files[0],{url:f.url,runScripts:'outside-only'}),w=dom.window,d=w.document;Object.defineProperty(w,'indexedDB',{value:new IDBFactory()});w.crypto.randomUUID=randomUUID;w.fetch=(path,args)=>fetch(new URL(path,f.url),args);
  w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};w.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');this.dispatchEvent(new w.Event('close'));};
  w.eval(files.slice(1).map(s=>s.replace(/^import .*;\r?\n/gm,'').replace(/^export /gm,'')).join('\n'));
@@ -100,7 +100,7 @@ test('DOM: язык переключается до входа и после н�
   await change('ru');await wait(()=>d.querySelector('[data-column=new] h2')?.textContent==='Новые заказы');
   assert.equal(d.querySelectorAll('[data-column]').length,10);assert.equal(w.localStorage.getItem('crm_locale'),'ru');assert.equal(d.querySelector('[data-view=adminDesk]'),null);
   await change('uz');await wait(()=>d.querySelector('[data-column=new] h2')?.textContent==='Yangi buyurtmalar');
-  d.querySelector('[data-action=logout]').click();await wait(()=>d.querySelector('[data-form=login]'));assert.equal(d.documentElement.lang,'uz');assert.deepEqual(Object.keys(w.localStorage),['crm_locale']);
+  d.querySelector('[data-action=logout]').click();await wait(()=>d.querySelector('[data-form=login]'));assert.equal(d.documentElement.lang,'uz');assert.deepEqual(Object.keys(w.localStorage).sort(),['crm_branding','crm_locale']);
  }finally{if(b)await b.close();await f.close();}
 });
 test('DOM: оператор — 10 этапов и обязательный район, без замеров/фото; администратор назначает районы/цвет',async()=>{
@@ -124,7 +124,8 @@ test('DOM: доставленный виден на главной, «В раб�
   d.querySelector('[data-scope=active]').click();await wait(()=>d.querySelector('[data-dashboard=reset]')&&d.querySelectorAll('[data-order-table] tbody tr').length===0);assert.equal(status.value,'');
   status.value='delivered';submit('[data-dashboard-filter]');await wait(()=>d.querySelector('[data-order-table] .delivered'));assert.equal(d.querySelector('[data-scope=all]').getAttribute('aria-pressed'),'true');
   const more=d.querySelector('[data-nav-more]');more.open=true;more.dispatchEvent(new w.Event('toggle'));assert.ok(d.querySelector('.nav-group-title'));assert.equal(d.querySelector('[data-view=stockroom]').textContent,'Материалы');
-  for(const view of w.crmModules.views(w.crmUI.user()).filter(v=>v!=='kanban'))assert.equal(d.querySelectorAll('nav [data-view="'+view+'"]').length,1,view);
+  for(const view of w.crmModules.views(w.crmUI.user()).filter(v=>!['kanban','appearance'].includes(v)))assert.equal(d.querySelectorAll('nav [data-view="'+view+'"]').length,1,view);
+  assert.equal(d.querySelectorAll('[data-account-settings] [data-view=appearance]').length,1);
   d.querySelector('[data-view=adminDesk]').click();await wait(()=>d.querySelector('[data-module-help=adminDesk]'));assert.equal(d.querySelector('[data-nav-more]').open,true);assert.match(d.querySelector('[data-module-help]').textContent,/Сотрудники и роли/);
   await login('operator','home');assert.equal(d.querySelector('nav [data-view=stockroom]'),null);assert.equal(d.querySelector('nav [data-view=payrollDesk]'),null);
  }finally{if(b)await b.close();await f.close();}
@@ -147,5 +148,22 @@ test('DOM касса: водитель видит доставки и перед
   await login('driver','home');await w.crmUI.navigate('cashbox');await wait(()=>d.querySelector('.cash-orders'));assert.equal(d.querySelector('[data-cash=hand-in]'),null);assert.match(d.querySelector('[data-cash-metric=cashHandedDaily] strong').textContent,/50\s*000/);
   const month=d.querySelector('.cash-month');month.open=true;month.dispatchEvent(new w.Event('toggle'));await wait(()=>d.querySelector('[data-cash-month-result] table'));
   await login('operator','home');assert.equal(d.querySelector('nav [data-view=cashbox]'),null);
+ }finally{if(b)await b.close();await f.close();}
+});
+
+test('DOM оформление: общий бренд, предпросмотр/отмена, сохранение и меню всех ролей без доступа к теме',async()=>{
+ const f=await workflowServer();let b;try{
+  b=await browser(f);const {d,w,login,wait,submit}=b;await login('admin','home');
+  d.querySelector('[data-view=appearance]').click();await wait(()=>d.querySelector('[data-brand-form]'));
+  let form=d.querySelector('[data-brand-form]');form.elements.organization_name.value='Gilamjon';form.elements.organization_name.dispatchEvent(new w.Event('input',{bubbles:true}));
+  assert.equal(d.querySelector('[data-brand-name]').textContent,'Gilamjon');assert.equal((await f.sql.query('select organization_name from organization_branding')).rows[0].organization_name,null);
+  form.elements.organization_name.value='<img src=x onerror=alert(1)>';form.elements.organization_name.dispatchEvent(new w.Event('input',{bubbles:true}));assert.equal(d.querySelector('[data-brand-name] img'),null);assert.equal(d.querySelector('[data-brand-name]').textContent,'<img src=x onerror=alert(1)>');
+  d.querySelector('[data-brand=cancel]').click();await wait(()=>d.querySelector('[data-brand-name]').textContent==='Ковёр CRM');
+  d.querySelector('[data-brand=preset][data-preset=dark]').click();await wait(()=>d.documentElement.dataset.theme==='dark');
+  form=d.querySelector('[data-brand-form]');form.elements.organization_name.value='Gilamjon';form.elements.subtitle.value='';submit(form);
+  await wait(()=>d.querySelector('[data-brand-form]')!==form);assert.equal((await f.sql.query('select organization_name from organization_branding')).rows[0].organization_name,'Gilamjon');assert.equal(d.title,'Gilamjon');
+  for(const role of ['operator','driver','warehouse','washer','packer']){
+   await login(role,'home');assert.equal(d.querySelector('[data-view=appearance]'),null);assert.ok(d.querySelector('[data-account-settings] [data-action=logout]'));assert.ok(d.querySelector('[data-account-settings] [data-language]'));assert.equal(d.querySelector('[data-brand-name]').textContent,'Gilamjon');
+  }
  }finally{if(b)await b.close();await f.close();}
 });

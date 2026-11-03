@@ -20,6 +20,7 @@ export function fakeDb(role='admin') {
    },
   };return q;
  };
- db.storage={from:()=>({exists:async()=>({data:true,error:null}),createSignedUrls:async paths=>({data:paths.map(path=>({path,signedUrl:'https://example.test/private/'+path})),error:null}),createSignedUploadUrl:async()=>({data:{signedUrl:'https://example.test/upload',token:'signed'},error:null})})};
+ db.storageObjects=new Map();
+ db.storage={from:bucket=>({exists:async()=>({data:true,error:null}),createSignedUrls:async paths=>({data:paths.map(path=>({path,signedUrl:'https://example.test/private/'+path})),error:null}),createSignedUploadUrl:async()=>({data:{signedUrl:'https://example.test/upload',token:'signed'},error:null}),upload:async(path,buffer,options)=>{const key=bucket+'/'+path;if(db.storageObjects.has(key))return {error:{message:'exists'}};db.storageObjects.set(key,new Blob([buffer],{type:options.contentType}));return {data:{path},error:null};},download:async path=>db.storageObjects.has(bucket+'/'+path)?{data:db.storageObjects.get(bucket+'/'+path),error:null}:{data:null,error:{message:'missing'}}})};
  return db;
 }

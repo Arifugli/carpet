@@ -10,7 +10,7 @@ export async function database({beforeLifecycle,stage=99,legacyGrants=true,throu
  await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
   create schema auth; create table auth.users(id uuid primary key,raw_user_meta_data jsonb,email text,raw_app_meta_data jsonb not null default '{}');
   create function auth.uid() returns uuid language sql as $$select null::uuid$$;
-  create schema storage; create table storage.buckets(id text primary key,name text,public boolean);
+  create schema storage; create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
   grant usage on schema public,auth to service_role;`);
  const initial=await readFile(new URL('../../supabase/migrations/0001_init.sql',import.meta.url),'utf8');
  await db.exec(initial);
