@@ -38,7 +38,7 @@ import {t,money,date,localizedName,intlLocale} from './i18n.js';
   const self=d.self,totals=admin()?d.totals:self;
   const root=$('#cash-results');if(!root)return;
   $('#cash-updated').textContent=t('updatedAt')+' '+date(d.generated_at);
-  root.innerHTML='<div class="cash-kpis cash-daily-kpis">'+card('cashDeliveredCount',totals.deliveries_count)+card('cashDeliveryValue',amountText(totals.deliveries_total))+card(admin()?'cashAcceptedDaily':'cashHandedDaily',amountText(totals.accepted))+card(admin()?'cashToReceive':'cashToHandIn',amountText(totals.outstanding))+'</div>'+
+  root.innerHTML='<div class="cash-kpis cash-daily-kpis">'+card('cashDeliveredCount',totals.deliveries_count)+card('cashDeliveryValue',amountText(totals.deliveries_total))+card(admin()?'cashToReceive':'cashToHandIn',amountText(totals.outstanding))+card(admin()?'cashAcceptedDaily':'cashHandedDaily',amountText(totals.accepted))+'</div>'+
    (!admin()?'<div class="cash-driver-action">'+
     (self.pending>0?'<p>'+esc(t('cashWaiting'))+': <strong>'+amountText(self.pending)+'</strong></p>':'')+
     (self.to_hand>0?btn('cashHanded','hand-in','class="primary"'):'<p class="muted">'+esc(t(self.pending>0?'cashWaitForAdmin':'cashNothingToHand'))+'</p>')+'</div>':
