@@ -81,6 +81,7 @@ import {t,money,date,localizedName} from './i18n.js';
    const value=prefill[key]??prefill.config?.[key]??'';const opts=formOptions(type,prefill);
    if(type==='districtMulti')return `<div data-driver-field><label>${esc(t(label))}<select name="district_codes" multiple size="6">${(state.meta.districts||[]).map(d=>`<option value="${esc(d.code)}" ${(prefill.district_codes||[]).includes(d.code)?'selected':''}>${esc(localizedName(d))}</option>`).join('')}</select></label><small>${esc(t('driverDistrictHint'))}</small></div>`;
    if(type==='hidden')return `<input type="hidden" name="${key}" value="${esc(value)}">`;
+   if(type==='orderLookup')return `<div class="field" data-order-lookup><label for="intake-order-search">${esc(t('findComplaintOrder'))}</label><input id="intake-order-search" type="search" data-order-search autocomplete="off" maxlength="120" placeholder="${esc(t('search'))}"><label for="intake-order-choice">${esc(t('chooseComplaintOrder'))}</label><select id="intake-order-choice" name="${key}" required><option value="">${esc(t('chooseComplaintOrder'))}</option></select><small role="status" data-order-lookup-status>${esc(t('complaintOrderHint'))}</small></div>`;
    if(opts)return select(key,label,opts,value,required);
    if(type==='textarea')return `<div class="field"><label for="desk-${key}">${esc(t(label))}</label><textarea id="desk-${key}" name="${key}" maxlength="1500" ${required?'required':''}>${esc(value)}</textarea></div>`;
    if(type==='checkbox')return `<label class="check"><input name="${key}" type="checkbox" ${value?'checked':''}>${esc(t(label))}</label>`;
@@ -90,7 +91,22 @@ import {t,money,date,localizedName} from './i18n.js';
    const el=$('#action').querySelector(`[name="${key}"]`);if(el){const hidden=document.createElement('input');hidden.type='hidden';hidden.name=key;hidden.value=el.value;el.removeAttribute('name');el.disabled=true;el.after(hidden);}
   }
   if(name==='client.address')fillAddress($('#action form'),prefill);
-  driverFields($('#action form'));$('#action').showModal();
+  driverFields($('#action form'));$('#action').showModal();setupOrderLookup($('#action form'),prefill);
+ }
+ function setupOrderLookup(form,prefill){
+  const input=form.querySelector('[data-order-search]');if(!input)return;
+  const select=form.elements.order_id,status=form.querySelector('[data-order-lookup-status]'),owner=user().id;let request=0,timer;
+  input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();select.focus();}});
+  input.addEventListener('input',()=>{
+   clearTimeout(timer);const current=++request,q=input.value.trim();select.innerHTML=`<option value="">${esc(t('chooseComplaintOrder'))}</option>`;form.querySelector('[data-desk-error]').textContent='';
+   if(q.length<2){status.textContent=t('complaintOrderHint');return;}status.textContent=t('loading');
+   timer=setTimeout(async()=>{try{
+    const params=new URLSearchParams({q,branch_id:prefill.branch_id,limit:'20',offset:'0'}),data=await ui().api('/order-table?'+params);
+    if(!form.isConnected||!$('#action').open||current!==request||user()?.id!==owner)return;
+    select.innerHTML=`<option value="">${esc(t('chooseComplaintOrder'))}</option>`+(data.data||[]).map(o=>`<option value="${esc(o.id)}">${esc(o.code)} · ${esc(o.client?.name||'')} · ${esc(o.client?.phone||'')} · ${esc(t(o.status))}</option>`).join('');
+    status.textContent=t(data.data?.length?'complaintOrderFound':'complaintOrderEmpty');
+   }catch(e){if(form.isConnected&&current===request&&user()?.id===owner)status.textContent=e.message;}},250);
+  });
  }
  function driverFields(form){if(!form?.elements.role)return;const driver=form.elements.role.value==='driver';form.querySelectorAll('[data-driver-field]').forEach(el=>el.hidden=!driver);if(form.elements.district_codes)form.elements.district_codes.required=driver;if(form.elements.driver_color)form.elements.driver_color.closest('.field').hidden=!driver;}
  function readForm(form){
@@ -160,7 +176,7 @@ import {t,money,date,localizedName} from './i18n.js';
  function renderRows(){
   const view=state.view,rows=state.rows;
   if(!rows.length){$('#desk-list').innerHTML=`<div class="box empty">${esc(t('empty'))}</div>`;return;}
-  $('#desk-list').innerHTML=`<div class="cards">${rows.map(row=>`<article class="card"><strong>${esc(row.title||row.name||row.phone)}</strong><p>${esc(row.phone||row.note||row.comment||'')}</p><span class="pill">${esc(t(row.outcome||row.status))}</span><small>${esc(date(row.due_at||row.callback_at||row.started_at||row.created_at))}</small>${row.recording_url?`<a href="${esc(row.recording_url)}" target="_blank" rel="noreferrer">${esc(t('recording'))}</a>`:''}${view==='tasks'&&row.status==='open'?button('complete','task-complete',`data-id="${row.id}"`):''}${view==='calls'?button('clientSearch','phone-client',`data-phone="${esc(row.phone)}"`)+(window.crmModules?.callActions?.(row)||''):''}</article>`).join('')}</div>`;
+  $('#desk-list').innerHTML=`<div class="cards">${rows.map(row=>`<article class="card"><strong>${esc(row.title||row.name||row.phone)}</strong><p>${esc(row.phone||row.note||row.comment||'')}</p>${view==='leads'?`<p class="intake-note">${esc(row.comment||'')}</p><small>${esc(t('acceptedBy'))}: ${esc(state.meta.staff.find(p=>p.id===row.created_by)?.full_name||t('unknown'))}</small>`:''}<span class="pill">${esc(t(row.outcome||row.status))}</span><small>${esc(date(row.due_at||row.callback_at||row.started_at||row.created_at))}</small>${row.recording_url?`<a href="${esc(row.recording_url)}" target="_blank" rel="noreferrer">${esc(t('recording'))}</a>`:''}${view==='tasks'&&row.status==='open'?button('complete','task-complete',`data-id="${row.id}"`):''}${view==='calls'?button('clientSearch','phone-client',`data-phone="${esc(row.phone)}"`)+(window.crmModules?.callActions?.(row)||''):''}</article>`).join('')}</div>`;
   $('#desk-pagination').innerHTML=state.cursor?button('more','more'):'';
  }
  async function load(append=false){

@@ -16,6 +16,28 @@ async function browser(f){
  const login=async(role,view='kanban')=>{if(d.querySelector('[data-action=logout]')){d.querySelector('[data-action=logout]').click();await wait(()=>d.querySelector('[data-form=login]'));}await wait(()=>d.querySelector('[data-form=login]'));d.querySelector('[name=email]').value=role+'@example.test';d.querySelector('[name=password]').value='test';submit('[data-form=login]');await wait(()=>d.querySelector('[data-work-view=home]'));if(view!=='home')await w.crmUI.navigate(view);await wait(()=>view==='kanban'?d.querySelector('[data-column]'):d.querySelector('[data-order-table]'));};
  return {dom,w,d,wait,submit,login,close:async()=>{await new Promise(r=>setTimeout(r,150));dom.window.close();}};
 }
+test('DOM приём обращений и претензий: основные пункты, поиск заказа, описание и общий просмотр admin/operator',async()=>{
+ const f=await workflowServer();let b;try{
+  b=await browser(f);const {d,w,login,wait,submit}=b;await login('operator','home');
+  for(const view of ['leads','qualityDesk']){assert.ok(d.querySelector('#header nav>button[data-view='+view+']'));assert.equal(d.querySelectorAll('[data-nav-more] [data-view='+view+']').length,0);}
+  d.querySelector('[data-view=leads]').click();await wait(()=>d.querySelector('[data-form-name="lead.save"]'));
+  d.querySelector('[data-form-name="lead.save"]').click();await wait(()=>d.querySelector('[data-desk-form="lead.save"]'));
+  let form=d.querySelector('[data-desk-form]');form.elements.phone.value='901234567';form.elements.name.value='Дилноза';form.elements.comment.value='Перезвонить по условиям забора';submit(form);
+  await wait(()=>!d.querySelector('#action').open&&d.querySelector('#desk-list')?.textContent.includes('Перезвонить по условиям забора'));
+  d.querySelector('[data-view=qualityDesk]').click();await wait(()=>d.querySelector('[data-form="complaint.intake"]'));
+  d.querySelector('[data-form="complaint.intake"]').click();await wait(()=>d.querySelector('[data-order-search]'));
+  form=d.querySelector('[data-desk-form]');const search=form.querySelector('[data-order-search]');search.value='901234567';search.dispatchEvent(new w.Event('input',{bubbles:true}));
+  await wait(()=>form.elements.order_id.querySelector('option[value="'+f.orderId+'"]'));form.elements.order_id.value=f.orderId;form.elements.reason.value='Проверка пятен';form.elements.note.value='<img src=x onerror=alert(1)>\nОписание клиента';submit(form);
+  await wait(()=>!d.querySelector('#action').open&&d.querySelector('#operations-result')?.textContent.includes('Проверка пятен'));
+  assert.equal(d.querySelector('[data-ops=resolve]'),null);d.querySelector('[data-ops=complaint-detail]').click();await wait(()=>d.querySelector('.intake-details'));
+  assert.match(d.querySelector('.intake-details').textContent,/Описание клиента/);assert.match(d.querySelector('.intake-details').textContent,/operator/);assert.equal(d.querySelector('.intake-details img'),null);d.querySelector('#action [data-ops=close]').click();
+  await login('admin','home');d.querySelector('[data-view=qualityDesk]').click();await wait(()=>d.querySelector('[data-ops=complaint-detail]'));assert.match(d.querySelector('#operations-result').textContent,/Проверка пятен/);assert.ok(d.querySelector('[data-ops=resolve]'));
+  d.querySelector('[data-ops=complaint-detail]').click();await wait(()=>d.querySelector('.intake-details'));assert.match(d.querySelector('.intake-details').textContent,/Описание клиента/);d.querySelector('#action [data-ops=close]').click();
+  d.querySelector('[data-view=leads]').click();await wait(()=>d.querySelector('#desk-list')?.textContent.includes('Перезвонить по условиям забора'));
+  await login('driver','home');for(const view of ['leads','qualityDesk'])assert.equal(d.querySelector('[data-view='+view+']'),null);
+ }finally{if(b)await b.close();await f.close();}
+});
+
 test('DOM + HTTP + SQL: водитель действует в боковой карточке; склад получает форму замеров',async()=>{
  const f=await workflowServer();let b;try{
   b=await browser(f);const {d,w,login,wait,submit}=b;

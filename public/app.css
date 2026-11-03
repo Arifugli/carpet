@@ -142,3 +142,5 @@ html[data-theme=dark] .error,html[data-theme=dark] .pill.cancelled{background:#4
 @media(max-width:560px){.theme-section{padding:16px}.theme-color-grid{grid-template-columns:1fr}.theme-color-grid label{grid-template-columns:minmax(0,1fr) 64px;align-items:center}.theme-color-grid input{width:64px}.account-menu{min-width:195px}}
 .account-identity{display:none;padding:8px;border-bottom:1px solid var(--line);margin-bottom:8px;overflow-wrap:anywhere;font-size:14px}.account-identity small{margin-top:3px}
 @media(max-width:500px){.account-identity{display:block}}
+
+.intake-note,.intake-details dd{white-space:pre-wrap;overflow-wrap:anywhere}.intake-details{display:grid;gap:12px}.intake-details>div{min-width:0}.intake-details dt{color:var(--muted);font-size:13px}.intake-details dd{margin:4px 0 0}

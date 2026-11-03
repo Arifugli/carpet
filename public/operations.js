@@ -24,9 +24,10 @@ import {t,money,date,localizedName} from './i18n.js';
   'webhook.save':form('newWebhook',[fields.branch,['name','name','text',true],['url','webhookURL','url',true],['secret_env','secretEnv','text',true],['active','active','checkbox']]),
  });
  modules.forms['client.policy']={...modules.forms['client.preferences'],command:'client.preferences',fields:[...modules.forms['client.preferences'].fields,['blacklisted','blacklisted','checkbox'],['blacklist_reason','blacklistReason','textarea']]};
+ modules.forms['complaint.intake']={...modules.forms['complaint.create'],command:'complaint.create',fields:[['order_id','entity','orderLookup',true],...modules.forms['complaint.create'].fields.slice(1).filter(([key])=>key!=='photo_id')]};
  const definitions={
   stockroom:{view:'stock',permission:'inventory',actions:[['newMaterial','material.save','staff']]},
-  qualityDesk:{view:'quality',permission:'complaints'},rewashDesk:{view:'rewash',permission:'admin'},
+  qualityDesk:{view:'quality',permission:'complaints',actions:[['newComplaint','complaint.intake','complaints']]},rewashDesk:{view:'rewash',permission:'admin'},
   loyaltyDesk:{view:'loyalty',permission:'discounts',actions:[['newDiscount','discount.rule','discounts']]},
   payrollDesk:{view:'payroll',permission:'payroll',actions:[['newPieceRate','piece_rate.save','staff']]},
   planningDesk:{view:'planning',permission:'staff',roles:['admin'],actions:[['slotLimit','slot_limit.save','staff']]},
@@ -36,10 +37,15 @@ import {t,money,date,localizedName} from './i18n.js';
  const value=(v,key)=>v==null?'—':key.endsWith('_at')?date(v):typeof v==='boolean'?t(v?'yes':'no'):['amount','rate','total','counted','expected','difference','issued_total','min_total'].includes(key)?money(v):['role','state','stage','event','unit','kind','resolution','channel'].includes(key)?esc(t(v)):esc(v);
  const table=(rows,columns,action)=>rows?.length?`<div class="table-scroll"><table><thead><tr>${columns.map(([key,label])=>`<th>${esc(t(label||key))}</th>`).join('')}${action?`<th>${esc(t('action'))}</th>`:''}</tr></thead><tbody>${rows.map(row=>`<tr>${columns.map(([key])=>`<td>${['employee_id','driver_id','received_by','responsible_id'].includes(key)?esc(name(row[key])):(key==='name_ru'?esc(localizedName(row)):value(row[key],key))}</td>`).join('')}${action?`<td>${action(row)}</td>`:''}</tr>`).join('')}</tbody></table></div>`:`<p class="muted">${esc(t('empty'))}</p>`;
  const section=(title,html)=>`<section class="box"><h2>${esc(t(title))}</h2>${html}</section>`;
+ function complaintDetail(id){
+  const r=state.data?.complaints?.find(c=>c.id===id);if(!r)return;
+  const fields=[['code',r.code],['complaintReason',r.reason],['note',r.note],['acceptedBy',name(r.created_by)],['date',date(r.created_at)],['status',t(r.state)],['assigned_to',name(r.responsible_id)],['due_at',date(r.due_at)],['resolution',r.resolution?t(r.resolution):t('unknown')],['note',r.resolution_note]];
+  $('#action').innerHTML=`<div class="row dialog-head"><h2>${esc(t('complaintDetails'))} · ${esc(r.code)}</h2>${btn('close','close')}</div><dl class="intake-details">${fields.map(([label,value])=>`<div><dt>${esc(t(label))}</dt><dd>${esc(value||t('noData'))}</dd></div>`).join('')}</dl><div class="actions">${btn('openComplaintOrder','complaint-order',`data-id="${r.order_id}"`)}</div>`;$('#action').showModal();
+ }
  function draw(){
   const d=state.data,v=state.view;let html='';
   if(v==='stockroom')html=section('materials',table(d.materials,[['name','name'],['unit','unit'],['stock','stock'],['norm_per_m2','normPerM2']],ui().has('staff')?r=>btn('adjustStock','adjust',`data-id="${r.id}"`):null))+section('stockMovements',table(d.movements,[['created_at','date'],['quantity','quantity'],['source','source'],['note','note']]));
-  if(v==='qualityDesk')html=section('complaints',table(d.complaints,[['code','code'],['reason','complaintReason'],['state','status'],['responsible_id','assigned_to'],['due_at','due_at'],['resolution','resolution'],['resolution_note','note']],r=>`${btn('details','order',`data-id="${r.order_id}"`)}${ui().has('discounts')&&!r.resolution?btn('resolveComplaint','resolve',`data-id="${r.id}"`):''}`))+section('compensations',table(d.compensations,[['amount','amount'],['note','note']],ui().has('discounts')?r=>btn('markPaid','compensate',`data-id="${r.id}"`):null));
+  if(v==='qualityDesk')html=section('complaints',table(d.complaints,[['code','code'],['reason','complaintReason'],['state','status'],['responsible_id','assigned_to'],['due_at','due_at'],['resolution','resolution'],['resolution_note','note']],r=>`${btn('details','complaint-detail',`data-id="${r.id}"`)}${ui().has('discounts')&&!r.resolution?btn('resolveComplaint','resolve',`data-id="${r.id}"`):''}`))+section('compensations',table(d.compensations,[['amount','amount'],['note','note']],ui().has('discounts')?r=>btn('markPaid','compensate',`data-id="${r.id}"`):null));
   if(v==='rewashDesk')html=table(d.jobs,[['code','code'],['reason','complaintReason'],['stage','stage']],r=>btn('nextStage','rewash',`data-id="${r.id}" data-stage="${r.stage}"`));
   if(v==='loyaltyDesk')html=table(d.rules,[['code','promoCode'],['kind','kind'],['percent','discountPercent'],['min_orders','minOrders'],['uses','uses'],['max_uses','maxUses'],['valid_to','validTo'],['active','active']]);
   if(v==='payrollDesk')html=section('payrollAccruals',`<p>${esc(t('payrollHint'))}</p>`+table(d.accruals,[['full_name','full_name'],['role','role'],['operations','operations'],['amount','amount']]))+section('operatorKpi',table(d.operators,[['full_name','full_name'],['orders','orders'],['cancellations','cancellations'],['delivered','delivered'],['issued_total','issuedTotal']]))+section('pieceRates',table(d.rates,[['role','role'],['event','action'],['unit','unit'],['rate','rate'],['effective_at','effective_at']]));
@@ -76,6 +82,8 @@ import {t,money,date,localizedName} from './i18n.js';
    if(action==='form'){modules.choices.photoRef=(o?.items||[]).flatMap(i=>(i.photos||[]).map(p=>[p.id,`${t('item')} ${i.seq} · ${t(p.kind)}`]));await modules.openForm(el.dataset.form,{branch_id:state.filters.branch_id,order_id:o?.id,day:state.filters.date,valid_from:new Date().toISOString().slice(0,16),valid_to:new Date(Date.now()+30*86400000).toISOString().slice(0,16),percent:10,min_orders:0,min_total:0,amount:Math.max(0,Number(o?.total)-Number(o?.paid_amount||0)),provider:'payme',kind:'promo',unit:'л',norm_per_m2:0,rate:0});}
    if(action==='refresh'||action==='more')await load(action==='more');
    if(action==='order')await ui().openOrder(id);
+   if(action==='complaint-detail')complaintDetail(id);
+   if(action==='complaint-order'){$('#action').close();await ui().openOrder(id);}
    if(action==='close')$('#action').close();
    if(action==='call-link')await modules.openForm('call.link',{call_id:id});
    if(action==='print')await ui().print(`/orders/${o.id}/print/${el.dataset.kind}`);
