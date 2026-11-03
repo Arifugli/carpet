@@ -37,6 +37,16 @@ $$;
 create function public.crm_cash_period_lock(b uuid,d date) returns void language sql volatile security invoker set search_path=public,pg_temp as $$
  select pg_advisory_xact_lock(hashtextextended('cash-month:'||b::text||':'||date_trunc('month',d)::date::text,0))
 $$;
+create function public.crm_cash_fact_time(b uuid) returns timestamptz language plpgsql volatile security invoker set search_path=public,pg_temp as $$
+declare before_lock timestamptz;after_lock timestamptz;begin
+ loop
+  before_lock:=clock_timestamp();
+  perform public.crm_cash_period_lock(b,(before_lock at time zone 'Asia/Tashkent')::date);
+  after_lock:=clock_timestamp();
+  -- A transaction waiting across midnight must not add facts to a closed month.
+  if date_trunc('month',before_lock at time zone 'Asia/Tashkent')=date_trunc('month',after_lock at time zone 'Asia/Tashkent') then return after_lock;end if;
+ end loop;
+end $$;
 create view public.crm_cash_deliveries with(security_invoker=true) as
  select o.id as order_id,o.branch_id,o.delivery_driver_id as driver_id,'K-'||o.number as code,
  h.delivered_at,(h.delivered_at at time zone 'Asia/Tashkent')::date as business_day,o.total,o.paid_amount,
@@ -81,8 +91,8 @@ create function public.crm_cash_delivery_guard() returns trigger language plpgsq
 declare b uuid;begin
  if new.status='delivered' then
   -- Timestamp the actual transition, not the start of a transaction crossing midnight.
-  new.created_at:=clock_timestamp();select branch_id into b from public.orders where id=new.order_id;
-  perform public.crm_cash_period_lock(b,(new.created_at at time zone 'Asia/Tashkent')::date);
+  select branch_id into b from public.orders where id=new.order_id;
+  new.created_at:=public.crm_cash_fact_time(b);
  end if;return new;
 end $$;
 create trigger cash_delivery_period before insert on public.status_history for each row execute function public.crm_cash_delivery_guard();
@@ -96,7 +106,7 @@ begin
  end if;
  if tg_op<>'DELETE' and new.method='cash' and new.state='confirmed' then
   if new.received_by is null then raise exception using errcode='23514',message='Укажите получателя наличных';end if;
-  if tg_op='INSERT' then new.created_at:=clock_timestamp();end if;
+  if tg_op='INSERT' or old.method<>'cash' or old.state<>'confirmed' then new.created_at:=public.crm_cash_fact_time(new.branch_id);end if;
   perform public.crm_cash_period_lock(new.branch_id,(new.created_at at time zone 'Asia/Tashkent')::date);
  end if;
  if tg_op='DELETE' then return old;end if;return new;
