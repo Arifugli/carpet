@@ -1,4 +1,4 @@
-# Ковёр CRM 1.2.0
+# Ковёр CRM 1.2.1
 
 Express 5 / ESM, Supabase PostgreSQL/Auth/Storage, мобильная PWA. Переходы заказа, права, цена, аудит и агрегаты выполняются PostgreSQL; сервер использует только закрытый service_role.
 
