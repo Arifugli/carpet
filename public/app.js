@@ -23,9 +23,9 @@ const statusPill=value=>`<span class="pill ${esc(value)}">${esc(t(value))}</span
 const actor=id=>state.staff.find(x=>x.id===id)?.full_name||id||t('noData');
 const toast=message=>{$('#toast').textContent=message;setTimeout(()=>$('#toast').textContent='',5000);};
 
-async function api(path,{method='GET',body,idempotencyKey}={}) {
+async function api(path,{method='GET',body,file,idempotencyKey}={}) {
  let response;
- try { response=await fetch(`/api${path}`,{method,headers:{...(state.token?{Authorization:`Bearer ${state.token}`} : {}),...(body!==undefined?{'Content-Type':'application/json'}:{}),...(idempotencyKey?{'Idempotency-Key':idempotencyKey}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})}); }
+ try { response=await fetch(`/api${path}`,{method,headers:{...(state.token?{Authorization:`Bearer ${state.token}`} : {}),...(file?{'Content-Type':file.type}:body!==undefined?{'Content-Type':'application/json'}:{}),...(idempotencyKey?{'Idempotency-Key':idempotencyKey}:{})},...(file?{body:file}:body!==undefined?{body:JSON.stringify(body)}:{})}); }
  catch {throw Object.assign(new Error(t('networkError')),{network:true});}
  let data;try{data=await response.json();}catch{throw Object.assign(new Error(t('networkError')),{network:true});}
  if (!response.ok) {
@@ -38,17 +38,21 @@ function logout() {
  const previousUser=state.user?.id;if(previousUser)window.CRMOffline?.purgeSnapshots(previousUser).catch(()=>{});
  state.token=null;state.user=null;state.rows=[];state.staff=[];state.selected=null;state.request++;
  try{if(previousUser)sessionStorage.removeItem(`crm:new-order:${previousUser}`);}catch{}
+ $('#toast').textContent='';
  sessionStorage.removeItem('crm_access_token');
  sessionStorage.removeItem('crm_user_id');window.crmModules?.logout?.();state.navMoreOpen=false;
  $('#detail').close();$('#detail').innerHTML='';$('#action').close();$('#action').innerHTML='';loginScreen();
 }
 function shell() {
- document.title=t('title');document.documentElement.lang=locale;document.body.classList.toggle('crm-staff',!!state.user);
+ const identity=window.CRMBranding?.identity()||{name:t('title'),subtitle:t('subtitle')};
+ document.title=identity.name;document.documentElement.lang=locale;document.body.classList.toggle('crm-staff',!!state.user);
  const views=state.user?[...(window.crmModules?.views(state.user)||[]),...(has('trash')?['requests','trash']:[]),...(has('audit')?['audit']:[])]:[];
  const primary=[['home','home'],['tasks','tasks'],['clients','clients'],['orderList','orders'],['reports','analyticsNav']].filter(([key])=>views.includes(key));
- const omitted=new Set([...primary.map(([key])=>key),'kanban']);const more=views.filter(v=>!omitted.has(v));
+ const omitted=new Set([...primary.map(([key])=>key),'kanban','appearance']);const more=views.filter(v=>!omitted.has(v));
  const navButton=(view,label)=>'<button type="button" data-view="'+view+'" aria-current="'+(state.view===view||(view==='orderList'&&state.view==='kanban')?'page':'false')+'">'+esc(t(label||view))+'</button>';
- $('#header').innerHTML='<div class="bar"><div class="brand">'+esc(t('title'))+'<small>'+esc(t('subtitle'))+'</small></div><div class="header-controls"><label class="language-switch" for="interface-language">'+esc(t('language'))+'<select id="interface-language" data-language><option value="ru" '+(locale==='ru'?'selected':'')+'>Русский</option><option value="uz" '+(locale==='uz'?'selected':'')+'>O‘zbekcha</option></select></label>'+(state.user?'<div class="actions"><div class="user">'+esc(state.user.full_name)+'<small>'+esc(t(state.user.role))+'</small></div>'+button('logout','logout')+'</div>':'')+'</div></div>'+
+ $('#header').innerHTML='<div class="bar"><div class="brand"><img data-brand-logo alt="" '+(identity.logo?'src="'+esc(identity.logo)+'"':'hidden')+'><div class="brand-text"><span data-brand-name>'+esc(identity.name)+'</span><small data-brand-subtitle '+(!identity.subtitle?'hidden':'')+'>'+esc(identity.subtitle)+'</small></div></div><div class="header-controls"><div class="account-row">'+(state.user?'<div class="user">'+esc(state.user.full_name)+'<small>'+esc(t(state.user.role))+'</small></div>':'')+
+ '<details class="account-settings" data-account-settings><summary aria-label="'+esc(t('settingsMenu'))+'" title="'+esc(t('settingsMenu'))+'"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M9 3.6 9.5 2h5l.5 1.6 1.7 1 1.6-.3 2.5 4.3-1.1 1.3v2l1.1 1.3-2.5 4.3-1.6-.3-1.7 1-.5 1.8h-5L9 18l-1.7-1-1.6.3-2.5-4.3 1.1-1.3v-2L3.2 8.4l2.5-4.3 1.6.3Z"/></svg></summary><div class="account-menu">'+(state.user?'<div class="account-identity">'+esc(state.user.full_name)+'<small>'+esc(t(state.user.role))+'</small></div>':'')+'<label class="language-switch" for="interface-language"><span>'+esc(t('language'))+'</span><span class="locale-control"><select id="interface-language" data-language aria-label="'+esc(t('language'))+'"><option value="ru" '+(locale==='ru'?'selected':'')+'>RU</option><option value="uz" '+(locale==='uz'?'selected':'')+'>UZ</option></select></span></label>'+
+ (state.user?.role==='admin'?'<button type="button" data-view="appearance">'+esc(t('themeSettings'))+'</button>':'')+(state.user?button('logout','logout'):'')+'</div></details></div></div></div>'+
  (state.user?'<nav aria-label="'+esc(t('navigation'))+'">'+primary.map(([view,label])=>navButton(view,label)).join('')+
  (more.length?'<details class="nav-more" data-nav-more '+(state.navMoreOpen?'open':'')+'><summary>'+esc(t('moreSections'))+'</summary><p class="nav-help">'+esc(t('extraSectionsHint'))+'</p><div class="nav-groups">'+moduleGroups.map(([label,keys])=>{
  const allowed=keys.filter(v=>more.includes(v));return allowed.length?'<div class="nav-group"><span class="nav-group-title">'+esc(t(label))+'</span>'+allowed.map(v=>navButton(v,v==='stockroom'?'materials':v==='payrollDesk'?'payrollNav':v)).join('')+'</div>':'';
@@ -299,7 +303,8 @@ document.addEventListener('change',event=>{const form=event.target.closest('[dat
 document.addEventListener('change',event=>{if(event.target.name==='saved_address'){const form=event.target.closest('[data-form=create]');if(form&&form.elements.address)form.elements.address.value=event.target.value;}});
 
 async function start() {
- document.title=t('title');
+ await window.CRMBranding?.load?.();
+ document.title=window.CRMBranding?.identity().name||t('title');
  const token=location.pathname.match(/^\/track\/([^/]+)$/)?.[1];
  if(token){
   shell();$('#main').textContent=t('loading');
@@ -314,6 +319,8 @@ window.crmUI={api,user:()=>state.user,has,toast,openOrder:openDetail,openClient,
 $('#detail').setAttribute('aria-labelledby','detail-title');
 $('#detail').addEventListener('close',()=>{if(!$('#detail').open)paneCleanup();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#detail').open&&!$('#action').open){e.preventDefault();closeDetail();}});
+document.addEventListener('keydown',e=>{const menu=$('[data-account-settings]');if(e.key==='Escape'&&menu?.open){menu.open=false;menu.querySelector('summary').focus();}});
+document.addEventListener('click',e=>{const menu=$('[data-account-settings]');if(menu?.open&&!menu.contains(e.target))menu.open=false;});
 window.addEventListener('resize',()=>{if($('#detail').open){const mobile=innerWidth<=950;$('#main').inert=mobile;$('#header').inert=mobile;}});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 start();

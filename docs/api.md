@@ -41,6 +41,14 @@ POST `/staff/create`: email/password/full_name/role/active/branch_id; driver т�
 
 Прежние команды branch.save, tariff.schedule, setting.schedule, catalog.save, template.save и admin.update/archive/restore сохранены. Финансы payment.record/confirm/intent/refund, discount.*, клиентские предпочтения/теги/согласия, акты/претензии, склад и начисления, телефония/webhook/outbox и импорт/экспорт сохраняют API, с правами из permissions.md. С 0020 старая cash.close блокируется триггером: используйте новые действия кассы ниже. Планирование и ставки доступны admin.
 
+## Оформление (0022)
+
+GET /api/branding доступен до входа: только общая тема, название, подпись, UUID логотипа/фона, revision/updated_at; updated_by не выдаётся. GET /api/branding/assets/:uuid отдаёт зарегистрированный PNG/JPG/WebP из отдельного приватного bucket, с nosniff и immutable-кэшем; этот маршрут не принимает пути к фотографиям заказов.
+
+POST /api/branding: активный admin, прежнее право staff и повторная проверка в crm_branding_save. Тело строго: organization_name (null либо 1–80), subtitle (null либо до 120), mode (light/dark), accent_color/background_color/sidebar_color (#RRGGBB), logo_id/background_id (UUID либо null), background_opacity (0–0.2), expected_revision. БД блокирует одну строку, повышает revision, пишет неизменяемый аудит. Чужое назначение файла/устаревшая версия отклоняется, идентичный повтор возвращает сохранённую версию.
+
+POST /api/branding/assets?kind=logo|background: активный admin; raw-тело image/png|image/jpeg|image/webp, до 2 МБ. Проверяются MIME и сигнатура; путь/UUID создаёт сервер, upsert запрещён. Ответ {id,url}; файл становится видимым в оформлении после сохранения соответствующего UUID. Служебные ключи клиенту не передаются. Клиентские роли не получают GRANT на таблицы или RPC.
+
 ## Ежедневная касса (0020)
 
 Доступ по прежнему payments: только активные admin/driver; филиал и собственная касса проверяются повторно в RPC. Сотрудники производства/operator доступа не получают.
