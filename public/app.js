@@ -60,7 +60,7 @@ function shell() {
 }
 function loginScreen() {
  shell();
- $('#main').innerHTML=`<section class="box login"><h1>${esc(t('loginTitle'))}</h1><p class="muted">${esc(t('loginHint'))}</p><form data-form="login">${field('email','email','email','required autocomplete="username"')}${field('password','password','password','required autocomplete="current-password"')}<div class="error" data-error role="alert"></div><button class="primary">${esc(t('login'))}</button></form></section>`;
+ $('#main').innerHTML=`<section class="box login"><h1>${esc(t('loginTitle'))}</h1><form data-form="login">${field('loginIdentifier','identifier','text','required autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="254"')}${field('password','password','password','required minlength="6" autocomplete="current-password"')}<div class="error" data-error role="alert"></div><button class="primary">${esc(t('login'))}</button></form></section>`;
 }
 async function initializeStaff() {
  try{
@@ -286,7 +286,7 @@ document.addEventListener('input',event=>{if(event.target.closest('[data-form=cr
 document.addEventListener('change',async event=>{
  if(event.target.matches('[data-language]')){
   const next=event.target.value;if(next===locale)return;
-  const login=$('[data-form=login]'),draft=login?{email:login.elements.email.value,password:login.elements.password.value}:null;
+  const login=$('[data-form=login]'),draft=login?{identifier:login.elements.identifier.value,password:login.elements.password.value}:null;
   if(!setLocale(next))return;
   try{if(location.pathname.startsWith('/track/'))await start();else if(state.user){const pane=state.pane;await listScreen();if(pane?.kind==='order')await openDetail(pane.id);else if(pane?.kind==='client')await openClient(pane.id,pane.branch);}else{loginScreen();if(draft)for(const [key,value]of Object.entries(draft))$('[data-form=login]').elements[key].value=value;}}
   catch(e){toast(e.message);}return;

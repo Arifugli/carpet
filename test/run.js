@@ -18,3 +18,4 @@ import './dashboard.test.js';
 import './daily-cash.test.js';
 import './branding.test.js';
 import './customer-intake.test.js';
+import './staff-login.test.js';

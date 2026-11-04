@@ -13,9 +13,23 @@ async function browser(f){
  w.eval(files.slice(1).map(s=>s.replace(/^import .*;\r?\n/gm,'').replace(/^export /gm,'')).join('\n'));
  const wait=async fn=>{for(let n=0;n<300;n++){if(fn())return;await new Promise(r=>setTimeout(r,15));}throw Error('UI timeout: '+d.body.textContent);};
  const submit=selector=>{const form=typeof selector==='string'?d.querySelector(selector):selector;assert.ok(form,selector);form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));};
- const login=async(role,view='kanban')=>{if(d.querySelector('[data-action=logout]')){d.querySelector('[data-action=logout]').click();await wait(()=>d.querySelector('[data-form=login]'));}await wait(()=>d.querySelector('[data-form=login]'));d.querySelector('[name=email]').value=role+'@example.test';d.querySelector('[name=password]').value='test';submit('[data-form=login]');await wait(()=>d.querySelector('[data-work-view=home]'));if(view!=='home')await w.crmUI.navigate(view);await wait(()=>view==='kanban'?d.querySelector('[data-column]'):d.querySelector('[data-order-table]'));};
+ const login=async(role,view='kanban')=>{if(d.querySelector('[data-action=logout]')){d.querySelector('[data-action=logout]').click();await wait(()=>d.querySelector('[data-form=login]'));}await wait(()=>d.querySelector('[data-form=login]'));d.querySelector('[name=identifier]').value=role+'@example.test';d.querySelector('[name=password]').value='test12';submit('[data-form=login]');await wait(()=>d.querySelector('[data-work-view=home]'));if(view!=='home')await w.crmUI.navigate(view);await wait(()=>view==='kanban'?d.querySelector('[data-column]'):d.querySelector('[data-order-table]'));};
  return {dom,w,d,wait,submit,login,close:async()=>{await new Promise(r=>setTimeout(r,150));dom.window.close();}};
 }
+test('DOM логин: вход без почты, сохранение RU/UZ, назначение логина администратором и пароль от 6 символов',async()=>{
+ const f=await workflowServer();let b;try{
+  await call(f.sql,'crm_command',['staff.update',JSON.stringify({user_id:ids.operator,full_name:'Оператор',role:'operator',active:true,branch_id:'01000000-0000-4000-8000-000000000001',login:'operator1'}),ids.admin,null,randomUUID()]);
+  b=await browser(f);const {d,w,wait,submit,login}=b;await wait(()=>d.querySelector('[data-form=login]'));
+  assert.ok(!d.querySelector('#main').textContent.includes('Supabase'));assert.equal(d.querySelector('[name=identifier]').type,'text');assert.equal(d.querySelector('[name=password]').minLength,6);
+  d.querySelector('[name=identifier]').value='OPERATOR1';d.querySelector('[name=password]').value='abc123';
+  let lang=d.querySelector('[data-language]');lang.value='uz';lang.dispatchEvent(new w.Event('change',{bubbles:true}));await wait(()=>d.documentElement.lang==='uz');assert.equal(d.querySelector('[name=identifier]').value,'OPERATOR1');assert.equal(d.querySelector('[name=password]').value,'abc123');
+  submit('[data-form=login]');await wait(()=>d.querySelector('[data-work-view=home]'));assert.equal(d.querySelector('[data-view=adminDesk]'),null);
+  await login('admin','home');await w.crmUI.navigate('adminDesk');await wait(()=>d.querySelector('[data-form-name="staff.create"]'));d.querySelector('[data-form-name="staff.create"]').click();await wait(()=>d.querySelector('[data-desk-form="staff.create"]'));
+  const form=d.querySelector('[data-desk-form]');assert.equal(form.elements.password.minLength,6);assert.equal(form.elements.login.required,true);assert.equal(form.elements.email.required,false);d.querySelector('[data-desk=close]').click();
+  const card=[...d.querySelectorAll('.card')].find(el=>el.textContent.includes('operator1'));assert.ok(card);card.querySelector('[data-desk=admin-edit]').click();await wait(()=>d.querySelector('[data-desk-form="staff.update"]'));const edit=d.querySelector('[data-desk-form]');assert.equal(edit.elements.login.value,'operator1');edit.elements.login.value='renamed1';submit(edit);await wait(()=>!d.querySelector('#action').open);assert.equal(await call(f.sql,'crm_login_identity',['renamed1']),ids.operator);
+ }finally{if(b)await b.close();await f.close();}
+});
+
 test('DOM приём обращений и претензий: основные пункты, поиск заказа, описание и общий просмотр admin/operator',async()=>{
  const f=await workflowServer();let b;try{
   b=await browser(f);const {d,w,login,wait,submit}=b;await login('operator','home');
@@ -112,10 +126,10 @@ test('DOM: язык переключается до входа и после н�
  const f=await workflowServer();let b;try{
   b=await browser(f);const {d,w,login,wait}=b;
   await wait(()=>d.querySelector('[data-form=login]'));
-  d.querySelector('[name=email]').value='operator@example.test';d.querySelector('[name=password]').value='draft-password';
+  d.querySelector('[name=identifier]').value='operator@example.test';d.querySelector('[name=password]').value='draft-password';
   const change=async value=>{const el=d.querySelector('[data-language]');el.value=value;el.dispatchEvent(new w.Event('change',{bubbles:true}));await wait(()=>d.documentElement.lang===value);};
   await change('uz');await wait(()=>d.querySelector('h1')?.textContent==='Xodimlar uchun kirish');
-  assert.equal(d.querySelector('[name=email]').value,'operator@example.test');assert.equal(d.querySelector('[name=password]').value,'draft-password');assert.equal(w.localStorage.getItem('crm_locale'),'uz');
+  assert.equal(d.querySelector('[name=identifier]').value,'operator@example.test');assert.equal(d.querySelector('[name=password]').value,'draft-password');assert.equal(w.localStorage.getItem('crm_locale'),'uz');
   await login('operator');assert.equal(d.querySelectorAll('[data-column]').length,10);assert.equal(d.querySelector('[data-column=new] h2').textContent,'Yangi buyurtmalar');
   d.querySelector('[data-flow=create]').click();await wait(()=>d.querySelector('[data-form=create]'));assert.match(d.querySelector('[data-form=create]').textContent,/Mijozning F.I.Sh./);assert.equal(d.querySelector('[name=source]').type,'hidden');assert.match(d.querySelector('[name=region_code]').textContent,/Farg/);
   d.querySelector('[data-action=close-action]').click();

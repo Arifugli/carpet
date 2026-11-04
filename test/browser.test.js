@@ -7,11 +7,22 @@ import {workflowServer} from './helpers/workflow-server.js';
 async function openAccount(page){const menu=page.locator('[data-account-settings]');await menu.waitFor();if(await menu.getAttribute('open')===null)await menu.locator('summary').click();}
 async function changeLanguage(page,value){await openAccount(page);await page.locator('[data-language]').selectOption(value);}
 async function accountLogout(page){await openAccount(page);await page.locator('[data-action=logout]').click();}
+test('Chromium логин: admin назначает имя входа, оператор входит с ним и паролем из 6 символов, RU/UZ и телефон',async()=>{
+ const f=await workflowServer();let browser;try{
+  browser=await chromium.launch({headless:true,...(process.env.CRM_BROWSER_CHANNEL?{channel:process.env.CRM_BROWSER_CHANNEL}:{})});const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(f.url);
+  assert.equal(await page.locator('.login').getByText(/Supabase/).count(),0);await page.locator('[name=identifier]').fill('admin@example.test');await page.locator('[name=password]').fill('test12');await page.locator('[data-form=login] button').click();await page.locator('[data-work-view=home]').waitFor();await page.locator('[data-nav-more] summary').click();await page.locator('[data-view=adminDesk]').click();await page.locator('[data-form-name="staff.create"]').waitFor();
+  const card=page.locator('.card').filter({has:page.getByText('operator',{exact:true})});await card.locator('[data-desk=admin-edit]').click();await page.locator('[name=login]').fill('operator1');await page.locator('[data-desk-form] button.primary').click();await page.locator('#action').waitFor({state:'hidden'});
+  await accountLogout(page);await page.setViewportSize({width:390,height:844});await page.locator('[name=identifier]').fill('OPERATOR1');await page.locator('[name=password]').fill('abc12');assert.equal(await page.locator('[name=password]').evaluate(el=>el.checkValidity()),false);await page.locator('[name=password]').fill('abc123');assert.equal(await page.locator('[name=password]').evaluate(el=>el.checkValidity()),true);
+  await changeLanguage(page,'uz');assert.equal(await page.locator('[name=identifier]').inputValue(),'OPERATOR1');assert.equal(await page.locator('[name=password]').inputValue(),'abc123');const dir=fileURLToPath(new URL('../test-artifacts/',import.meta.url));await mkdir(dir,{recursive:true});await page.screenshot({path:dir+'/staff-login-mobile.png',fullPage:true});
+  await page.locator('[data-form=login] button').click();await page.locator('[data-work-view=home]').waitFor();assert.equal(await page.locator('[data-view=adminDesk]').count(),0);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);
+ }finally{if(browser)await browser.close();await f.close();}
+});
+
 test('Chromium приём: оператор принимает обращение и претензию на телефоне, администратор видит обе записи',async()=>{
  const f=await workflowServer();let browser;try{
   browser=await chromium.launch({headless:true,...(process.env.CRM_BROWSER_CHANNEL?{channel:process.env.CRM_BROWSER_CHANNEL}:{})});
   const page=await browser.newPage({viewport:{width:390,height:844}}),dir=fileURLToPath(new URL('./test-artifacts/',import.meta.url));await mkdir(dir,{recursive:true});const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  const login=async role=>{await page.locator('[name=email]').fill(role+'@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-work-view=home]').waitFor();};
+  const login=async role=>{await page.locator('[name=identifier]').fill(role+'@example.test');await page.locator('[name=password]').fill('test12');await page.locator('[data-form=login] button').click();await page.locator('[data-work-view=home]').waitFor();};
   await page.goto(f.url);await login('operator');
   await page.locator('#header nav>[data-view=leads]').click();await page.locator('[data-form-name="lead.save"]').click();
   await page.locator('[data-desk-form] [name=phone]').fill('901234567');await page.locator('[data-desk-form] [name=name]').fill('Дилноза');await page.locator('[name=comment]').fill('Уточнить время забора');await page.locator('[data-desk-form] button.primary').click();await page.locator('#action').waitFor({state:'hidden'});await page.getByText('Уточнить время забора',{exact:true}).waitFor();
@@ -33,7 +44,7 @@ test('Chromium mobile: шесть колонок driver, десять operator, 
   await f.sql.query("update orders set promised_at=now()-interval '1 hour' where id=$1",[f.orderId]);
   await command(f.sql,'staff.update',{user_id:ids.driver,full_name:'driver',role:'driver',active:true,branch_id:'01000000-0000-4000-8000-000000000001',district_codes:['kokand_city'],driver_color:'#123abc'});await f.db.rpc('crm_ready',{});
   browser=await chromium.launch({headless:true,...(process.env.CRM_BROWSER_CHANNEL?{channel:process.env.CRM_BROWSER_CHANNEL}:{})});const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  const login=async role=>{await page.goto(f.url);await page.locator('[name=email]').fill(role+'@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table]').waitFor();await page.locator('[data-view=kanban]').click();await page.locator('[data-column]').first().waitFor();};
+  const login=async role=>{await page.goto(f.url);await page.locator('[name=identifier]').fill(role+'@example.test');await page.locator('[name=password]').fill('test12');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table]').waitFor();await page.locator('[data-view=kanban]').click();await page.locator('[data-column]').first().waitFor();};
   await page.goto(f.url);await changeLanguage(page,'uz');await page.getByRole('heading',{name:'Xodimlar uchun kirish'}).waitFor();await page.reload();assert.equal(await page.locator('html').getAttribute('lang'),'uz');
   await login('driver');assert.equal(await page.locator('[data-column]').count(),6);assert.equal(await page.locator('[data-column=new] h2').textContent(),'Yangi buyurtmalar');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   const dir=fileURLToPath(new URL('../test-artifacts/',import.meta.url));await mkdir(dir,{recursive:true});await page.screenshot({path:dir+'/driver-mobile.png',fullPage:true});
@@ -92,7 +103,7 @@ test('Chromium Dashboard: 55 заказов, страницы, боковая к
   for(let n=0;n<54;n++)await create(f.sql,{items:[]});await f.db.rpc('crm_ready',{});
   browser=await chromium.launch({headless:true,...(process.env.CRM_BROWSER_CHANNEL?{channel:process.env.CRM_BROWSER_CHANNEL}:{})});
   const context=await browser.newContext({viewport:{width:1500,height:950}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(f.url);await page.locator('[name=email]').fill('operator@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table] tbody tr').first().waitFor();
+  await page.goto(f.url);await page.locator('[name=identifier]').fill('operator@example.test');await page.locator('[name=password]').fill('test12');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table] tbody tr').first().waitFor();
   assert.equal(await page.locator('[data-order-table] tbody tr').count(),50);assert.match(await page.locator('#work-page').textContent(),/55/);
   await page.locator('[data-dashboard=page]').click();await page.waitForFunction(()=>document.querySelectorAll('[data-order-table] tbody tr').length===5);
   const dir=fileURLToPath(new URL('../test-artifacts/',import.meta.url));await mkdir(dir,{recursive:true});await page.screenshot({path:dir+'/dashboard-desktop.png',fullPage:true});
@@ -116,7 +127,7 @@ test('Chromium: доставленный заказ на главной и ро�
   await advance(f.sql,f.orderId);await f.db.rpc('crm_ready',{});
   browser=await chromium.launch({headless:true,...(process.env.CRM_BROWSER_CHANNEL?{channel:process.env.CRM_BROWSER_CHANNEL}:{})});
   const context=await browser.newContext({viewport:{width:1440,height:900}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(f.url);await page.locator('[name=email]').fill('admin@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table] .delivered').waitFor();
+  await page.goto(f.url);await page.locator('[name=identifier]').fill('admin@example.test');await page.locator('[name=password]').fill('test12');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table] .delivered').waitFor();
   const dir=fileURLToPath(new URL('../test-artifacts/',import.meta.url));await mkdir(dir,{recursive:true});
   for(const width of [1440,1024,768,390]){
    await page.setViewportSize({width,height:900});
@@ -148,7 +159,7 @@ test('Chromium касса: ежедневные доставки, передач
   browser=await chromium.launch({headless:true,...(process.env.CRM_BROWSER_CHANNEL?{channel:process.env.CRM_BROWSER_CHANNEL}:{})});
   const dc=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true}),ac=await browser.newContext({viewport:{width:1440,height:950}}),driver=await dc.newPage(),administrator=await ac.newPage(),errors=[];
   for(const page of [driver,administrator])page.on('pageerror',e=>errors.push(e.message));
-  const login=async(page,role)=>{await page.goto(f.url);await page.locator('[name=email]').fill(role+'@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table]').waitFor();await page.locator('[data-nav-more] summary').click();await page.locator('[data-view=cashbox]').click();await page.locator('.cash-kpis').waitFor();};
+  const login=async(page,role)=>{await page.goto(f.url);await page.locator('[name=identifier]').fill(role+'@example.test');await page.locator('[name=password]').fill('test12');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table]').waitFor();await page.locator('[data-nav-more] summary').click();await page.locator('[data-view=cashbox]').click();await page.locator('.cash-kpis').waitFor();};
   await login(driver,'driver');await driver.locator('.cash-orders').waitFor();assert.equal(await driver.locator('.cash-orders tbody tr').count(),1);assert.match(await driver.locator('.cash-kpis').textContent(),/50\s*000/);assert.equal(await driver.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   const driverMetric=driver.locator('[data-cash-metric=cashHandedDaily]');assert.equal(await driverMetric.locator('span').textContent(),'Сдал');assert.match(await driverMetric.locator('strong').textContent(),/^0\s/);
   const grid=await driver.locator('.cash-daily-kpis>div').evaluateAll(rows=>rows.map(r=>({top:r.getBoundingClientRect().top,left:r.getBoundingClientRect().left})));
@@ -172,7 +183,7 @@ test('Chromium оформление: логотип и фон, сохранен�
   browser=await chromium.launch({headless:true,...(process.env.CRM_BROWSER_CHANNEL?{channel:process.env.CRM_BROWSER_CHANNEL}:{})});
   const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(f.url);assert.equal(await page.locator('[data-language]').isVisible(),false);await openAccount(page);assert.ok(await page.locator('[data-language]').isVisible());assert.equal(await page.locator('[data-view=appearance]').count(),0);
-  await page.locator('[name=email]').fill('admin@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table]').waitFor();
+  await page.locator('[name=identifier]').fill('admin@example.test');await page.locator('[name=password]').fill('test12');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table]').waitFor();
   await openAccount(page);const menuBounds=await page.locator('.account-menu').boundingBox();assert.ok(menuBounds.x>=0);assert.ok(menuBounds.x+menuBounds.width<=1440);await page.locator('[data-view=appearance]').click();await page.locator('[data-brand-form]').waitFor();
   await page.locator('[name=organization_name]').fill('Gilamjon');await page.locator('[name=subtitle]').fill('');await page.locator('[data-brand=preset][data-preset=warm]').click();
   const image=Buffer.from(await page.evaluate(()=>{const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');x.fillStyle='#934223';x.fillRect(0,0,128,128);x.fillStyle='white';x.font='bold 88px sans-serif';x.fillText('G',28,95);return c.toDataURL('image/png').split(',')[1];}),'base64');
@@ -184,7 +195,7 @@ test('Chromium оформление: логотип и фон, сохранен�
   await page.locator('[data-brand=preset][data-preset=dark]').click();await page.waitForFunction(()=>document.documentElement.dataset.theme==='dark');await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:dir+'/appearance-dark-desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:dir+'/appearance-dark-mobile.png',fullPage:true});
   await page.locator('[data-brand=cancel]').click();await page.waitForFunction(()=>document.documentElement.dataset.theme==='light');await accountLogout(page);await page.locator('[data-form=login]').waitFor();
-  assert.equal(await page.locator('[data-brand-name]').textContent(),'Gilamjon');await page.locator('[name=email]').fill('operator@example.test');await page.locator('[name=password]').fill('test');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table]').waitFor();
+  assert.equal(await page.locator('[data-brand-name]').textContent(),'Gilamjon');await page.locator('[name=identifier]').fill('operator@example.test');await page.locator('[name=password]').fill('test12');await page.locator('[data-form=login] button').click();await page.locator('[data-order-table]').waitFor();
   await openAccount(page);assert.equal(await page.locator('[data-view=appearance]').count(),0);assert.ok(await page.locator('[data-action=logout]').isVisible());assert.ok((await page.locator('[data-language]').boundingBox()).width<=90);
   await changeLanguage(page,'uz');await page.waitForFunction(()=>document.documentElement.lang==='uz');assert.equal(await page.locator('[data-brand-name]').textContent(),'Gilamjon');await openAccount(page);await page.screenshot({path:dir+'/settings-operator-mobile.png',fullPage:true});
   await accountLogout(page);await page.locator('[data-form=login]').waitFor();assert.deepEqual(errors,[]);assert.equal((await f.sql.query('select count(*) from orders')).rows[0].count,1);await context.close();

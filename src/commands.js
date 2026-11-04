@@ -3,6 +3,7 @@ import {ADMIN_COMMANDS} from './admin-management.js';
 import {measurementInput,bookingFields} from './booking.js';
 import {ROLES,driverFields,requireDistricts} from './workflow.js';
 import {phone} from './validation.js';
+import {loginName} from './staff-login.js';
 const uuid=z.string().uuid(),text=(max=500)=>z.string().trim().min(1).max(max),note=z.string().trim().max(1000).optional();
 const branch={branch_id:uuid.optional()};
 const datetime=z.string().datetime({offset:true}),code=z.string().regex(/^[a-z0-9_]{1,40}$/);
@@ -36,6 +37,6 @@ export const COMMANDS={
  'catalog.save':{permission:'catalogs',schema:object({...branch,kind:z.enum(['source','zone','slot','defect','failure','tag','cancel_reason']),code,name_ru:text(120),name_uz:z.string().max(120).optional(),active:z.boolean().optional(),position:z.number().int().min(0).max(999).optional(),config:object({start:z.string().regex(/^\d{2}:\d{2}$/).optional(),end:z.string().regex(/^\d{2}:\d{2}$/).optional(),capacity:z.number().int().min(1).max(5000).optional()}).optional()})},
  'template.save':{permission:'catalogs',schema:object({...branch,code,channel:z.enum(['sms','telegram']),locale:z.enum(['ru','uz']).optional(),body:text(1500),active:z.boolean().optional()})},
  'branch.save':{permission:'branches',schema:object({code,name:text(120),address:z.string().max(300).optional(),phone:phone.optional(),active:z.boolean().optional(),workshop_capacity_m2:z.number().min(1).max(100000).optional(),sla_hours:z.number().int().min(1).max(720).optional()})},
- 'staff.update':{permission:'staff',schema:object({user_id:uuid,role:z.enum(ROLES),full_name:text(120),active:z.boolean(),branch_id:uuid.nullable().optional(),phone:phone.optional(),...driverFields}).superRefine(requireDistricts)},
+ 'staff.update':{permission:'staff',schema:object({user_id:uuid,login:loginName.nullable().optional(),role:z.enum(ROLES),full_name:text(120),active:z.boolean(),branch_id:uuid.nullable().optional(),phone:phone.optional(),...driverFields}).superRefine(requireDistricts)},
 };
 export const commandNames=()=>Object.keys(COMMANDS);

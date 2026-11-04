@@ -3,6 +3,8 @@ import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import { allow,canReadOrder,PERMISSIONS } from '../permissions.js';
 import { checked,HttpError,withCode } from '../http.js';
+import {loginName,PASSWORD_MIN_LENGTH} from '../staff-login.js';
+import {randomUUID} from 'node:crypto';
 
 const unavailable={error:'Статус заказа недоступен. Уточните информацию у оператора.',code:'TRACK_UNAVAILABLE'};
 export function createPublicApi(db,authClient) {
@@ -15,11 +17,19 @@ export function createPublicApi(db,authClient) {
   res.json(data);
  });
  router.post('/login',rateLimit({windowMs:60000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Слишком много попыток входа. Повторите позже.',code:'RATE_LIMIT'}}),async(req,res)=>{
-  const b=z.object({email:z.string().email().max(254),password:z.string().min(1).max(256)}).strict().parse(req.body);
+  const b=z.object({identifier:z.string().trim().min(1).max(254).optional(),email:z.string().trim().min(1).max(254).optional(),password:z.string().min(PASSWORD_MIN_LENGTH).max(256)}).strict().refine(v=>!!v.identifier!==!!v.email,{message:'Укажите логин или почту',path:['identifier']}).parse(req.body);
   if (!authClient) throw new HttpError(503,'Вход временно недоступен');
+  const identifier=b.identifier||b.email;let email=identifier,found=true;
+  if(!identifier.includes('@')){
+   const login=loginName.safeParse(identifier);if(!login.success)throw new HttpError(401,'Неверный логин, почта или пароль','LOGIN_FAILED');
+   const id=checked(await db.rpc('crm_login_identity',{p_login:login.data}));
+   const user=id?await db.auth.admin.getUserById(id):null;
+   found=!!user?.data?.user?.email&&!user.error;
+   email=found?user.data.user.email:`unknown-${randomUUID()}@staff.invalid`;
+  }else if(!z.string().email().safeParse(email).success)throw new HttpError(401,'Неверный логин, почта или пароль','LOGIN_FAILED');
   // Отдельный клиент: сессия сотрудника никогда не подменяет service_role клиента БД.
-  const {data,error}=await authClient.auth.signInWithPassword(b);
-  if (error||!data.session) throw new HttpError(401,'Неверная почта или пароль','LOGIN_FAILED');
+  const {data,error}=await authClient.auth.signInWithPassword({email,password:b.password});
+  if (!found||error||!data.session) throw new HttpError(401,'Неверный логин, почта или пароль','LOGIN_FAILED');
   res.set('Cache-Control','no-store').json({access_token:data.session.access_token,expires_at:data.session.expires_at});
  });
  return router;

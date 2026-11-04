@@ -5,6 +5,8 @@ import {allow,can,canReadOrder} from '../permissions.js';
 import {checked,HttpError} from '../http.js';
 import {ROLES,driverFields,requireDistricts,boardFilter,STATUSES} from '../workflow.js';
 import {webhookURL} from '../integration-security.js';
+import {loginName,PASSWORD_MIN_LENGTH} from '../staff-login.js';
+import {randomUUID} from 'node:crypto';
 
 const filters=z.object({branch_id:z.string().uuid().optional(),date:z.string().date().optional(),limit:z.coerce.number().int().min(1).max(100).optional(),cursor:z.string().max(600).optional(),phone:z.string().max(32).optional(),client_id:z.string().uuid().optional(),order_id:z.string().uuid().optional(),driver_id:z.string().uuid().optional(),status:z.enum(['open','done']).optional(),label:z.string().regex(/^K-[1-9]\d{0,14}(?:-[1-9]\d{0,2})?$/i).optional()}).strict();
 const viewPermissions={bootstrap:'read',client:'clients',leads:'leads',calls:'calls',tasks:'tasks',scan:'read',payments:'read',admin:'staff'};
@@ -61,11 +63,12 @@ export function createWorkspaces(db,config={}){
   res.json(checked(await db.rpc(name.startsWith('admin.')?'crm_admin_command':'crm_command',{p_command:name,p_data:data,p_user:req.user.id,p_ip:req.ip,p_key:key})));
  });
  router.post('/staff/create',allow('staff'),async(req,res)=>{
-  const b=z.object({email:z.string().email().max(254),password:z.string().min(12).max(128),full_name:z.string().trim().min(1).max(120),role:z.enum(ROLES),branch_id:z.string().uuid().nullable(),active:z.boolean().default(false),...driverFields}).strict().superRefine(requireDistricts).parse(req.body);
+  const b=z.object({email:z.string().trim().email().max(254).optional(),login:loginName.optional(),password:z.string().min(PASSWORD_MIN_LENGTH).max(128),full_name:z.string().trim().min(1).max(120),role:z.enum(ROLES),branch_id:z.string().uuid().nullable(),active:z.boolean().default(false),...driverFields}).strict().superRefine(requireDistricts).refine(v=>!!v.email||!!v.login,{message:'Укажите логин или почту',path:['login']}).parse(req.body);
   const key=z.string().uuid().parse(req.get('Idempotency-Key'));
-  const {data,error}=await db.auth.admin.createUser({email:b.email,password:b.password,email_confirm:true,user_metadata:{full_name:b.full_name}});
+  if(b.login&&checked(await db.from('profiles').select('id').eq('login',b.login).maybeSingle()))throw new HttpError(409,'Этот логин уже занят','LOGIN_TAKEN');
+  const {data,error}=await db.auth.admin.createUser({email:b.email||`u-${randomUUID()}@staff.invalid`,password:b.password,email_confirm:true,user_metadata:{full_name:b.full_name}});
   if(error)throw new HttpError(400,'Не удалось создать учётную запись. Проверьте почту и требования к паролю','AUTH_CREATE_FAILED');
-  const result=await db.rpc('crm_command',{p_command:'staff.update',p_data:{user_id:data.user.id,full_name:b.full_name,role:b.role,branch_id:b.branch_id,active:b.active,district_codes:b.district_codes,driver_color:b.driver_color},p_user:req.user.id,p_ip:req.ip,p_key:key});
+  const result=await db.rpc('crm_command',{p_command:'staff.update',p_data:{user_id:data.user.id,full_name:b.full_name,role:b.role,branch_id:b.branch_id,active:b.active,district_codes:b.district_codes,driver_color:b.driver_color,...(b.login?{login:b.login}:{})},p_user:req.user.id,p_ip:req.ip,p_key:key});
   if(result.error)return res.status(409).json({error:'Учётная запись создана неактивной. Откройте сотрудников и настройте её профиль.',code:'PROFILE_SETUP_REQUIRED',user_id:data.user.id});
   res.status(201).json(result.data);
  });
