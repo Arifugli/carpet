@@ -36,7 +36,7 @@ test('DOM + HTTP + SQL: ошибка телефона выделяет поле,
   w.eval(files.slice(1).map(s=>s.replace(/^import .*;\r?\n/gm,'').replace(/^export /gm,'')).join('\n'));
   const wait=async fn=>{for(let i=0;i<250;i++){if(fn())return;await new Promise(r=>setTimeout(r,15));}throw Error('UI timeout: '+d.body.textContent);};
   const submit=selector=>d.querySelector(selector).dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
-  await wait(()=>d.querySelector('[data-form=login]'));d.querySelector('[name=email]').value='admin@example.test';d.querySelector('[name=password]').value='test';submit('[data-form=login]');
+  await wait(()=>d.querySelector('[data-form=login]'));d.querySelector('[name=identifier]').value='admin@example.test';d.querySelector('[name=password]').value='test12';submit('[data-form=login]');
   await wait(()=>d.querySelector('[data-view=adminDesk]'));d.querySelector('[data-view=adminDesk]').click();await wait(()=>d.querySelector('[data-form-name="branch.save"]'));d.querySelector('[data-form-name="branch.save"]').click();
   const form=d.querySelector('[data-desk-form="branch.save"]');for(const [key,value] of Object.entries({code:'40',name:'Тестовый филиал',address:'Тестовый город, улица 1',phone:'90123456'}))form.elements[key].value=value;
   submit('[data-desk-form="branch.save"]');await wait(()=>form.elements.phone.getAttribute('aria-invalid')==='true');assert.match(form.querySelector('[data-desk-error]').textContent,/Телефон/);assert.equal(d.activeElement,form.elements.phone);assert.equal(form.elements.name.value,'Тестовый филиал');assert.equal(form.elements.code.value,'40');assert.match(form.textContent,/Код \+998 добавится автоматически/);

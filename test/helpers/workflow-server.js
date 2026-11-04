@@ -15,6 +15,7 @@ export async function workflowServer(config={},databaseOptions={}) {
  };
  await sync();
  db.auth.getUser=async token=>({data:{user:{id:ids[token]}}});
+ db.auth.admin={getUserById:async id=>({data:{user:{id,email:Object.entries(ids).find(([,value])=>value===id)?.[0]+'@example.test'}}})};
  db.rpc=async(name,params)=>{
   try {
    const entries=Object.entries(params),args=entries.map(([k],i)=>`${k}=>$${i+1}`).join(',');
@@ -24,5 +25,5 @@ export async function workflowServer(config={},databaseOptions={}) {
  };
  const authClient={auth:{signInWithPassword:async({email})=>({data:{session:{access_token:email.split('@')[0],expires_at:9999999999}}})}};
  const server=await listen(createApp({db,authClient,config:{trustProxy:false,...config}}));
- return {sql,db,orderId,url:`http://127.0.0.1:${server.address().port}`,close:async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await sql.close();}};
+ return {sql,db,authClient,orderId,url:`http://127.0.0.1:${server.address().port}`,close:async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await sql.close();}};
 }
